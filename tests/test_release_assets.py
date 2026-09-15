@@ -1,0 +1,56 @@
+"""Release filenames and checksums must agree with the downloaded archives."""
+import hashlib
+import importlib.util
+from pathlib import Path
+import zipfile
+
+import pytest
+
+spec = importlib.util.spec_from_file_location(
+    "release_assets", Path(__file__).resolve().parents[1] / "packaging/release_assets.py")
+assets = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(assets)
+
+
+@pytest.mark.parametrize("target", ["windows-x64", "macos-x86_64", "macos-arm64"])
+def test_archive_and_checksum_share_release_name(tmp_path, target):
+    archive = tmp_path / "旧名称.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("应用/MAC使用说明.txt", "首次打开与使用方法")
+    archive.with_suffix(".zip.sha256").write_text("obsolete checksum")
+    result = assets.stage_archive(tmp_path, "char-detection-main", "v1.2.3-rc.1", target)
+    assert result.name == f"char-detection-main-v1.2.3-rc.1-{target}.zip"
+    checksum, name = result.with_suffix(".zip.sha256").read_text().strip().split("  ")
+    assert checksum == hashlib.sha256(result.read_bytes()).hexdigest()
+    assert name == result.name
+    with zipfile.ZipFile(result) as bundle:
+        assert bundle.read("应用/MAC使用说明.txt").decode() == "首次打开与使用方法"
+    assert not list(tmp_path.glob("*.zip*"))
+
+
+@pytest.mark.parametrize("version", ["v1.2.3", "v0.1.0-beta.2", "dev-abc1234"])
+def test_accepts_documented_versions(version):
+    assert assets.asset_stem("group-by-character", version, "windows-x64") == f"group-by-character-{version}-windows-x64"
+
+
+@pytest.mark.parametrize("version", ["1.0.0", "v1", "v01.2.3", "../v1.2.3", "v1.2.3/extra", "v1.2.3\nunsafe"])
+def test_rejects_ambiguous_or_unsafe_version_names(version):
+    with pytest.raises(ValueError):
+        assets.asset_stem("group-by-character", version, "windows-x64")
+
+
+def test_refuses_to_choose_between_stale_archives(tmp_path):
+    for name in ("old.zip", "new.zip"):
+        (tmp_path / name).write_bytes(b"placeholder")
+    with pytest.raises(ValueError, match="exactly one"):
+        assets.stage_archive(tmp_path, "group-by-character", "v1.0.0", "macos-arm64")
+    assert not (tmp_path / "release").exists()
+
+
+def test_release_event_cannot_use_a_development_version(monkeypatch):
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "release")
+    monkeypatch.setattr("sys.argv", ["release_assets.py", "--project", "group-by-character",
+                                   "--version", "dev-abc1234", "--target", "windows-x64", "--validate-only"])
+    with pytest.raises(SystemExit) as error:
+        assets.main()
+    assert error.value.code == 2

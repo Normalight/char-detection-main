@@ -1,17 +1,16 @@
 name: Build desktop apps
 
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  group: desktop-${{ github.event_name }}-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -25,11 +24,11 @@ jobs:
           - target: windows-x64
             runner: windows-2022
             python_arch: x64
-          - target: macos-intel
+          - target: macos-x86_64
             runner: macos-15-intel
             python_arch: x64
             mac_arch: x86_64
-          - target: macos-apple-silicon
+          - target: macos-arm64
             runner: macos-15
             python_arch: arm64
             mac_arch: arm64
@@ -37,6 +36,9 @@ jobs:
       QT_QPA_PLATFORM: offscreen
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
       PYTHONUTF8: '1'
+      PACKAGE_PROJECT: char-detection-main
+      PACKAGE_VERSION: ${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}
+      PACKAGE_TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -45,6 +47,9 @@ jobs:
           architecture: ${{ matrix.python_arch }}
           cache: pip
           cache-dependency-path: packaging/requirements-*.txt
+      - name: Validate package naming
+        shell: bash
+        run: python packaging/release_assets.py --project "$PACKAGE_PROJECT" --version "$PACKAGE_VERSION" --target "$PACKAGE_TARGET" --validate-only
       - name: Download default OCR models
         run: python packaging/download_models.py
       - name: Install and test (Windows)
@@ -76,20 +81,23 @@ jobs:
         run: |
           "build/mac-env-$MAC_TARGET/bin/python" -m pip install pytest
           "build/mac-env-$MAC_TARGET/bin/python" -m pytest tests/ -q
+      - name: Stage versioned release assets
+        shell: bash
+        run: python packaging/release_assets.py --project "$PACKAGE_PROJECT" --version "$PACKAGE_VERSION" --target "$PACKAGE_TARGET"
       - name: Upload installable archives
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: char-detection-main-${{ matrix.target }}
+          name: char-detection-main-${{ env.PACKAGE_VERSION }}-${{ matrix.target }}
           path: |
-            dist/*.zip
-            dist/*.zip.sha256
+            dist/release/*.zip
+            dist/release/*.zip.sha256
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
 
   release:
     name: Publish versioned installers
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'release'
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -97,17 +105,16 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: char-detection-main-*
+          pattern: char-detection-main-${{ github.event.release.tag_name }}-*
           path: release-assets
           merge-multiple: true
       - name: Publish archives to this private repository
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         shell: bash
         run: |
-          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --generate-notes
-          fi
+          gh release view "$RELEASE_TAG" >/dev/null
+          (cd release-assets && sha256sum --check *.zip.sha256)
           gh release upload "$RELEASE_TAG" release-assets/*.zip release-assets/*.sha256 --clobber

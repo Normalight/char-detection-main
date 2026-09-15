@@ -191,7 +191,7 @@ python -m pytest tests/ -q
 
 ## GitHub 自动打包
 
-推送到 `main` 或在 Actions 手动运行 **Build desktop apps**，会分别构建：
+在 GitHub 发布 Release（正式版或预发布版）时，自动运行 **Build desktop apps**，分别构建：
 
 - Windows x64：解压后运行 exe，保留整个文件夹。
 - macOS Intel（x86_64）：使用 Intel 原生 runner 构建。
@@ -202,12 +202,25 @@ Mac 需要 macOS 14 或更新版本。每个 Mac ZIP 内都有 `MAC使用说明.
 构建脚本保留本地完整性签名，不需要 Apple 开发者账号。
 
 在 Actions 的成功运行页面下载 Artifacts（保留 14 天）；解压 artifact 后再解压其中的安装包 ZIP。
-推送 `v*` 标签（例如 `v1.0.0`）时，三种构建全部通过后自动上传 ZIP 与 SHA-256 到同仓库 Release。
+三种构建全部通过后，自动将 ZIP 与 SHA-256 上传到触发本次构建的 Release。
+保存草稿、推送代码或单独推送标签均不触发打包；不会由流水线自动创建另一个 Release。
+标签需使用 `v主版本.次版本.修订号`，如 `v1.0.0` 或 `v1.0.0-rc.1`。
+请从包含当前工作流的提交创建版本标签；每次构建使用该 Release 标签对应的源码。
+也可在 Actions 手动运行验证构建，文件名使用 `dev-提交SHA`，仅上传 Artifacts。
 私有仓库的构建产物与 Release 仍需相应仓库访问权限。
 
 CI 使用 Python 3.11 和固定版本依赖；模型由 `packaging/download_models.py`
 从官方 Hugging Face 固定提交下载，包含在应用中，不提交到源码仓库。
-每个构建会运行应用测试和真实打包程序的 `--smoke-test`；任一步失败都不会发布 Release。
+每个构建会运行应用测试和真实打包程序的 `--smoke-test`；任一步失败都不会向已发布的 Release 上传安装包。
 
 本地构建仍可运行 `bash build_mac.sh arm64`、`bash build_mac.sh x86_64`；
 双架构通用包可在具备两种 Python 3.11 与 Rosetta 的 M 系列 Mac 上运行 `bash build_mac.sh universal`。
+
+安装包命名统一为 `仓库名-版本标签-平台-架构.zip`，校验文件追加 `.sha256`。
+例如本仓库的 `v1.0.0`：
+
+- `char-detection-main-v1.0.0-windows-x64.zip`
+- `char-detection-main-v1.0.0-macos-x86_64.zip`（Intel）
+- `char-detection-main-v1.0.0-macos-arm64.zip`（M 系列）
+
+文件名以标签为准，与可自由填写的 Release 标题无关；应用内名称保持中文。
