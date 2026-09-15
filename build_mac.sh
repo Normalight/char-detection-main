@@ -32,7 +32,7 @@ for CPU in "${ARCHES[@]}"; do
     "$ROOT/build/mac-dist-$CPU/Runtime.app/Contents/MacOS/runtime" --smoke-test
     "${RUN[@]}" -m pip freeze > "$ROOT/build/mac-dist-$CPU/dependencies.txt"
 done
-RELEASE="$ROOT/dist/${APP_NAME}-macOS-${TARGET}"
+RELEASE="$ROOT/dist/切字-${PACKAGE_VERSION:-v0.0.0-dev}-macos-${TARGET}"
 # Only generated output for this exact build target is replaced.
 rm -rf "$RELEASE"
 APP="$RELEASE/$APP_NAME.app"
@@ -41,7 +41,6 @@ CLANG_ARCH=()
 for CPU in "${ARCHES[@]}"; do
     mkdir -p "$APP/Contents/Resources/runtime/$CPU"
     ditto "$ROOT/build/mac-dist-$CPU/Runtime.app" "$APP/Contents/Resources/runtime/$CPU/Runtime.app"
-    cp "$ROOT/build/mac-dist-$CPU/dependencies.txt" "$RELEASE/dependencies-$CPU.txt"
     CLANG_ARCH+=(-arch "$CPU")
 done
 xcrun clang "${CLANG_ARCH[@]}" -mmacosx-version-min=14.0 -Os packaging/launcher.c -o "$APP/Contents/MacOS/launcher"
@@ -66,10 +65,7 @@ for CPU in "${ARCHES[@]}"; do
     /usr/bin/arch -"$CPU" "$APP/Contents/MacOS/launcher" --smoke-test
 done
 cp MAC使用说明.txt "$RELEASE/MAC使用说明.txt"
-cp packaging/open_mac.sh "$RELEASE/打开软件.sh"
-cp packaging/open_mac.sh "$RELEASE/打开软件.command"
-chmod +x "$RELEASE/打开软件.sh" "$RELEASE/打开软件.command"
 ZIP="$RELEASE.zip"
 rm -f "$ZIP"
-ditto -c -k --sequesterRsrc --keepParent "$RELEASE" "$ZIP"
+ditto -c -k --norsrc --noextattr --noqtn "$RELEASE" "$ZIP"
 echo "已生成并验证：$ZIP"
