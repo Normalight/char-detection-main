@@ -9,7 +9,10 @@ TARGET="${1:-universal}"
 case "$TARGET" in universal) ARCHES=(arm64 x86_64);; arm64|x86_64) ARCHES=("$TARGET");; *) echo "用法: bash build_mac.sh [universal|arm64|x86_64]" >&2; exit 2;; esac
 [[ "$(uname -s)" == Darwin ]] || { echo '必须在 macOS 上构建。' >&2; exit 1; }
 xcrun --find clang >/dev/null || { echo '请先执行 xcode-select --install' >&2; exit 1; }
+# Use actual developer tools instead of /usr/bin xcrun stubs under Rosetta.
+export PATH="$(dirname "$(xcrun --find lipo)"):$PATH"
 for CPU in "${ARCHES[@]}"; do
+    export PYINSTALLER_CONFIG_DIR="$ROOT/build/mac-cache-$CPU"
     if [[ "$CPU" == arm64 ]]; then PY="${PYTHON_ARM64:-}"; else PY="${PYTHON_X86_64:-}"; fi
     if [[ -z "$PY" ]]; then
         command -v uv >/dev/null || { echo "请安装 uv，或设置 PYTHON_ARM64 / PYTHON_X86_64 为对应架构的 Python 3.11 路径。" >&2; exit 1; }
@@ -62,12 +65,12 @@ codesign --verify --deep --strict "$APP"
 for CPU in "${ARCHES[@]}"; do
     /usr/bin/arch -"$CPU" "$APP/Contents/MacOS/launcher" --smoke-test
 done
-cp MAC使用说明.md "$RELEASE/使用说明.md"
+cp MAC使用说明.txt "$RELEASE/MAC使用说明.txt"
 cp packaging/open_mac.sh "$RELEASE/打开软件.sh"
 cp packaging/open_mac.sh "$RELEASE/打开软件.command"
 chmod +x "$RELEASE/打开软件.sh" "$RELEASE/打开软件.command"
 ZIP="$RELEASE.zip"
 rm -f "$ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$RELEASE" "$ZIP"
-shasum -a 256 "$ZIP" > "$ZIP.sha256"
+(cd "$ROOT/dist" && shasum -a 256 "$(basename "$ZIP")") > "$ZIP.sha256"
 echo "已生成并验证：$ZIP"

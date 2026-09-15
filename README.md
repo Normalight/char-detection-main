@@ -99,7 +99,7 @@ PY
 
 若模型缺失，启动会给出明确路径和下载提示。旧后端可从 [chineseocr_lite 模型目录](https://github.com/DayBreak-u/chineseocr_lite/tree/master/models)
 下载 `dbnet.onnx`、`crnn_lite_lstm.onnx`，放入本项目 `models/`。
-macOS 当前打包脚本同时收集这两个回退模型，因此打包前也需要下载。
+macOS 打包只收集当前配置选中的模型，默认无需旧后端模型。
 开启角度检测时还需同目录的 `angle_net.onnx`。无需 v6 模型的回退组合：
 
 ```python
@@ -166,14 +166,14 @@ OCR 使用独立副本（默认最长边 2560 像素，`config.ocr_max_side` 可
 
 ## macOS 通用应用（Intel / M 系列）
 
-执行 `bash build_mac.sh` 构建一个适配两种芯片的 `.app` 与发布 ZIP；无需开发者证书。使用者无需安装 Python。详见 [Mac 安装、使用与打包说明](MAC使用说明.md)。源码启动脚本为 `start_gui.sh`。
+执行 `bash build_mac.sh` 构建一个适配两种芯片的 `.app` 与发布 ZIP；无需开发者证书。使用者无需安装 Python。详见 [Mac 安装、使用与打包说明](MAC使用说明.txt)。源码启动脚本为 `start_gui.sh`。
 
 
 ## macOS
 
 激活 Python 3.10 / 3.11 环境后执行 `bash start_gui.sh`。
 构建可使用 `bash build_mac.sh arm64`（Apple Silicon）或 `bash build_mac.sh x86_64`（Intel）；
-不带参数构建双架构包。详细说明见 [macOS 使用说明](MAC使用说明.md)。
+不带参数构建双架构包。详细说明见 [macOS 使用说明](MAC使用说明.txt)。
 
 ## 仓库范围
 
@@ -187,3 +187,27 @@ MegaHan 训练/复核、历史评测与命令行演示已移除；其测试源�
 python -m pip install pytest
 python -m pytest tests/ -q
 ```
+
+
+## GitHub 自动打包
+
+推送到 `main` 或在 Actions 手动运行 **Build desktop apps**，会分别构建：
+
+- Windows x64：解压后运行 exe，保留整个文件夹。
+- macOS Intel（x86_64）：使用 Intel 原生 runner 构建。
+- macOS Apple Silicon（arm64 / M 系列）：使用 ARM 原生 runner 构建。
+
+Mac 需要 macOS 14 或更新版本。每个 Mac ZIP 内都有 `MAC使用说明.txt`，
+只说明首次允许打开未使用 Developer ID 签名及公证的应用，以及软件使用方式。
+构建脚本保留本地完整性签名，不需要 Apple 开发者账号。
+
+在 Actions 的成功运行页面下载 Artifacts（保留 14 天）；解压 artifact 后再解压其中的安装包 ZIP。
+推送 `v*` 标签（例如 `v1.0.0`）时，三种构建全部通过后自动上传 ZIP 与 SHA-256 到同仓库 Release。
+私有仓库的构建产物与 Release 仍需相应仓库访问权限。
+
+CI 使用 Python 3.11 和固定版本依赖；模型由 `packaging/download_models.py`
+从官方 Hugging Face 固定提交下载，包含在应用中，不提交到源码仓库。
+每个构建会运行应用测试和真实打包程序的 `--smoke-test`；任一步失败都不会发布 Release。
+
+本地构建仍可运行 `bash build_mac.sh arm64`、`bash build_mac.sh x86_64`；
+双架构通用包可在具备两种 Python 3.11 与 Rosetta 的 M 系列 Mac 上运行 `bash build_mac.sh universal`。

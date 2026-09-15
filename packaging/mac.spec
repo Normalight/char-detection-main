@@ -6,7 +6,11 @@ import sys
 sys.path.insert(0, str(root))
 datas = []
 import config
-models = [Path(config.model_path), Path(config.crnn_model_path)]
+models = []
+if config.det_model == "legacy":
+    models.append(Path(config.model_path))
+if config.rec_model == "crnn":
+    models.append(Path(config.crnn_model_path))
 if config.det_model.startswith('v6-'):
     models.append(Path(config.ppocrv6_det_model_path[config.det_model.split('-', 1)[1]]))
 if config.rec_model.startswith('v6-'):
@@ -21,7 +25,7 @@ for model in models:
         if not source.is_file():
             raise FileNotFoundError(f'缺少模型资源：{source}')
         datas.append((str(source), str(source.parent.relative_to(root))))
-a = Analysis([str(root / 'packaging/mac_entry.py')],
+a = Analysis([str(root / 'packaging/entry.py')],
     pathex=[str(root), str(root / 'packaging')], datas=datas, binaries=[],
     hiddenimports=[], hookspath=[], runtime_hooks=[],
     excludes=['PyQt5', 'PyQt6', 'PySide2', 'tkinter', 'pytest'], noarchive=False)

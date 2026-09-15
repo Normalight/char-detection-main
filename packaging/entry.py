@@ -5,7 +5,7 @@ import sys
 if __name__ == '__main__':
     multiprocessing.freeze_support()
     if '--smoke-test' in sys.argv:
-        from mac_smoke import smoke_test
+        from smoke_test import smoke_test
         smoke_test()
     else:
         from app import main

@@ -45,8 +45,8 @@ except Exception:
     pass
 
 a = Analysis(
-    ['app.py'],             # 工程入口
-    pathex=[project_dir],
+    ['packaging/entry.py'],             # 工程入口
+    pathex=[project_dir, os.path.join(project_dir, 'packaging')],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
