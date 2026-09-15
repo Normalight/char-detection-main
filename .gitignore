@@ -1,0 +1,114 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+test/
+
+# Build and packaging artifacts
+build/
+dist/
+*.egg-info/
+*.exe
+*.msi
+*.toc
+*.pkg
+
+# Packaged outputs
+*.zip
+*.rar
+*.7z
+
+# Runtime and generated OCR outputs
+output/
+interactive_output/
+data/
+data2/
+opts.json
+
+# Benchmark artifacts: PP-OCRv6 det/rec onnx 模型（det 70MB + rec 98MB，走 HF 下载不进仓库）
+# + bench/output*/ 渲染的可视化对比图（临时产物）
+models/ppocrv6/
+models/ppocrv6_rec/
+bench/output/
+bench/output_e2e/
+bench/output_rec/
+bench/output_pipeline/
+bench/output_char_truth/
+bench/output_char_truth_review/
+bench/output_char_tuning/
+bench/output*/
+output_v6small/
+
+# MegaHan97K 数据仅限非商业研究且需向发布方申请；本地数据与训练产物不入库
+/MegaHan*/
+models/rare_glyph_review/
+training/megahan_lite/checkpoints/
+training/megahan_lite/exports/
+
+# Local data and temporary annotation files
+*.pickle
+*.pkl
+*.xlsx
+*.xls
+*.xlsm
+~$*.xls*
+
+# Logs
+*.log
+logs/
+
+# IDE and editor files
+.idea/
+.vscode/
+.zcode/
+*.swp
+*.swo
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local brainstorming mockups
+.superpowers/
+
+# Unrelated PPT task artifacts (slides, images, planning docs)
+outputs/
+ppt_assets/
+docs/
+
+# Local secrets, caches and generated artifacts
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+~syncthing~*
+*.tmp
+*.zip
+*.zip.sha256
+*.dmg
+newImages/
+newOutputs/
+docs/
+ppt_assets/
+
+# Download models separately; never publish weights or model caches
+/models/
+*.onnx
+*.pt
+*.pth
+*.ckpt
+*.safetensors

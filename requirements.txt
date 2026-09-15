@@ -1,0 +1,28 @@
+# 字符检测 / OCR 标注工具依赖
+# 建议 Python 3.10 / 3.11（旧版本号 numpy==1.19 等在 Python 3.10+ 装不上）
+
+# 核心推理（OCR）
+numpy
+opencv-python
+onnxruntime
+Pillow
+# v6 det/rec 的 inference.yml 参数与字典解析
+PyYAML
+
+# 几何运算（dbnet / model.py 间接依赖）
+Shapely
+pyclipper
+
+# Excel 输出（excel_utils.py）
+xlsxwriter>=3.1.0
+
+# PDF 输入（pdf_utils.py；优先用 PyMuPDF，pdf2image 需要系统安装 poppler）
+PyMuPDF>=1.23.0
+pdf2image>=1.17.0
+
+# GUI（app.py / canvas_widget.py）
+# Qt 的 keyPressEvent 直接吃 WM_KEYDOWN，不经 IME，中文输入法激活时快捷键也照常触发。
+PySide6>=6.5
+
+# 打包（可选，仅 PyInstaller 用）
+# pyinstaller

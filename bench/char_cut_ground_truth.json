@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "description": "Full-resolution character cut lines, checked against original pixels and enlarged row overlays. Boundaries sit midway in visible inter-glyph gaps; touching strokes use the narrowest safe cut.",
+  "cases": [
+    {
+      "id": "images-0-png-row-03-60a4bfea8d",
+      "image": "images/0.png",
+      "source_row": 3,
+      "split": "train",
+      "orientation": "horizontal",
+      "text": "人生在世不称意，明朝散发弄扁舟。",
+      "characters": ["人", "生", "在", "世", "不", "称", "意", "，", "明", "朝", "散", "发", "弄", "扁", "舟", "。"],
+      "line_box": [[263, 322], [634, 322], [634, 342], [263, 342]],
+      "boundaries": [263, 285.5, 309.5, 335, 359, 382.5, 406.5, 431.5, 448.5, 479, 503.5, 528, 552, 576, 600.5, 625, 634],
+      "review": "black-on-white; punctuation gaps checked at 4x row scale"
+    },
+    {
+      "id": "images-0-png-row-10-20044dd9f0",
+      "image": "images/0.png",
+      "source_row": 10,
+      "split": "train",
+      "orientation": "horizontal",
+      "text": "李白（唐代）",
+      "characters": ["李", "白", "（", "唐", "代", "）"],
+      "line_box": [[308, 51], [467, 51], [467, 76], [308, 76]],
+      "boundaries": [312, 335.5, 377, 410, 432, 457, 467],
+      "review": "mixed wide CJK punctuation; touching left parenthesis/Tang boundary fixed at the visible saddle"
+    },
+    {
+      "id": "images-c1-jpg-row-00-df05420477",
+      "image": "images/c1.jpg",
+      "source_row": 0,
+      "split": "validation",
+      "orientation": "vertical",
+      "text": "流花善君澆花山君流出繼",
+      "characters": ["流", "花", "善", "君", "澆", "花", "山", "君", "流", "出", "繼"],
+      "line_box": [[681, 602], [1072, 611], [972, 5310], [580, 5302]],
+      "boundaries": [606.5, 978.5, 1447, 1917, 2343, 2792.5, 3243.5, 3630.5, 4000.5, 4482.5, 4908, 5306],
+      "review": "white calligraphy on textured dark rubbing; boundaries rechecked with a high-brightness brush-stroke mask so paper scratches do not count as ink"
+    },
+    {
+      "id": "images-0-png-row-08-49c8f785ff",
+      "image": "images/0.png",
+      "source_row": 8,
+      "split": "train",
+      "orientation": "horizontal",
+      "text": "乱我心者，今日之日多烦忧。",
+      "characters": ["乱", "我", "心", "者", "，", "今", "日", "之", "日", "多", "烦", "忧", "。"],
+      "line_box": [[263, 154], [562, 154], [562, 174], [263, 174]],
+      "boundaries": [263, 285.5, 309.5, 334.5, 359, 376, 408, 429.5, 456.5, 479, 502.5, 527.5, 552.5, 562],
+      "review": "held-out black-on-white row with narrow comma and full stop"
+    },
+    {
+      "id": "images-1-png-row-02-95bd8f09cd",
+      "image": "images/1.png",
+      "source_row": 2,
+      "split": "train",
+      "orientation": "vertical",
+      "text": "史也者是非之案牘也史",
+      "characters": ["史", "也", "者", "是", "非", "之", "案", "牘", "也", "史"],
+      "line_box": [[222, 72], [274, 73], [270, 553], [217, 553]],
+      "boundaries": [72.5, 121, 168, 218, 269, 317.5, 362.5, 413.5, 465, 509.5, 553],
+      "review": "held-out tilted vertical print on aged paper"
+    },
+    {
+      "id": "images-c1-jpg-row-05-cd6e6e8d4e",
+      "image": "images/c1.jpg",
+      "source_row": 5,
+      "split": "validation",
+      "orientation": "vertical",
+      "text": "君佶海安君億出繼順和君",
+      "characters": ["君", "佶", "海", "安", "君", "億", "出", "繼", "順", "和", "君"],
+      "line_box": [[5924, 557], [6284, 557], [6284, 5324], [5924, 5324]],
+      "boundaries": [557, 918, 1381.5, 1862.5, 2282.5, 2712.5, 3176.5, 3620.5, 4056.5, 4468, 4925.5, 5324],
+      "review": "held-out white calligraphy; every gap rechecked at original resolution with low-brightness rubbing texture suppressed"
+    },
+    {
+      "id": "images-t2-png-row-29-0536100883",
+      "image": "images/t2.png",
+      "source_row": 29,
+      "split": "validation",
+      "orientation": "horizontal",
+      "text": "Transcription",
+      "characters": ["T", "r", "a", "n", "s", "c", "r", "i", "p", "t", "i", "o", "n"],
+      "line_box": [[15, 54], [153, 57], [153, 85], [15, 83]],
+      "boundaries": [15, 31, 41, 51, 64, 77, 86, 98, 104, 111, 122, 131, 142, 153],
+      "review": "held-out light-background horizontal Latin text; boundaries checked against the original pixel columns, with full outer serifs retained"
+    }
+  ]
+}

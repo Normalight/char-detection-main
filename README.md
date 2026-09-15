@@ -1,0 +1,219 @@
+# 字符（单字）检测
+
+图片 / PDF 的中文字符检测、交互式标注与原图切片导出工具。
+
+## 原理
+
+默认流程：
+
+```text
+PP-OCRv6-small 检测文本行
+  → PP-OCRv6-small 识别
+  → 按官方 CTC 列中心计算单字位置
+  → 用局部笔画分别估计每字的左、上、右、下边界
+  → 保留外伸笔画，允许相邻字框重叠
+  → 保存单字 PNG / JSON / Excel
+```
+
+PP-OCRv6 的 CTC 时间列与裁剪图横向位置对应。实现采用官方
+`return_word_box` 的列中心语义：
+`x = (column + 0.5) × crop_width / time_steps`。默认 `stroke-ownership`
+把这些位置作为笔画归属的参考：按局部背景的明暗差提取墨迹，避免将泛黄纸面
+当作笔画；强墨迹作为种子，保留与其连接的弱笔画；
+用整行有序匹配合并分离偏旁；对跨多个字符的粘连区域，在墨迹内部从各字种子
+竞争生长。最终框取归属笔画的外接范围，只加 1 个源像素的抗锯齿余量。
+规则竖排会先检查各字间是否存在低墨迹谷；全部间隔均有证据时按这些位置
+归属像素，再生成实际墨迹框。栏线按长度、位置和厚度排除，搜索区内容必须
+得到本列核心墨迹支持，避免带入邻列或页框线。没有固定比例外扩，也没有强制中文方框。笔画像素分开归属后，矩形框仍可能
+自然重叠。没有可信墨迹时保留定位估计框，不能将这种回退视作真实轮廓。
+
+为找回检测行框边缘以外的笔画，几何细化会额外读取原图附近上下文；扩大的是
+搜索区域，最终框只跟随找到的笔画，仍限制在原图内。识别文本不会因此重跑。
+检测置信度低于 0.60 且文字识别置信度同时低于 0.40 的候选不生成字框，
+原始识别保留在结果的 `suppressed_candidate` 中供诊断；任一置信度较高时保留。
+这是对双低置信度杂点的处理，不是通用印章识别器。
+这仍是启发式方案，不是训练过的单字实例分割模型；严重粘连、背景纹理、框线
+及识别位置错误可能影响笔画归属，需要人工复核。
+
+旧 `independent-strokes`（10% 留白）、`polarity-aware`、`projection-refined`、
+`ctc-midpoint` 保留，可在 `config.py` 切换对照。重启后生效。旧标注的策略、
+框算法版本、检测尺寸、DPI 或图像缩放不一致时，选择“重新 OCR”生成新框；
+选择使用旧框则保留原标注。
+
+“开始”可重复点击以应用新目录或参数；有未保存内容时可选择保存、不保存
+或取消。程序异步等待旧后台任务结束后再启动，新设置不会提前改变旧会话
+的保存目录。切换过程中暂时锁定编辑，完成后恢复。
+
+主项目到此结束：保存最终单字 PNG、标注 JSON 和单页 Excel。按字归并已拆到
+独立的 [`group-by-character`](https://github.com/Normalight/group-by-character) 项目；它会递归遍历切片
+目录，重新识别并生成按字目录、清单和总 Excel。主项目不保存或展示额外的框内
+识别元数据，也不会在批量保存后自动启动第二次归并流程。
+
+
+## 安装和使用
+
+项目按 `conda chardet` 环境验证：
+
+```bash
+conda activate chardet
+python -m pip install -r requirements.txt
+```
+
+> 建议 Python 3.10 / 3.11。PDF 功能还需要系统安装 [poppler](https://poppler.freedesktop.org/)（macOS: `brew install poppler`）。
+> GUI 基于 PySide6（Qt），Windows 上**中文输入法激活时快捷键也照常生效**。
+
+### 下载默认模型
+
+**模型不随 Git 仓库上传。** 从官方下载权重及同版本 YAML，并放入下表路径：
+
+| 用途 | 下载 | 本地目录 |
+| --- | --- | --- |
+| 文本检测 | [ONNX](https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/main/inference.onnx) · [YAML](https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/main/inference.yml) · [官方页面](https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/tree/main) | `models/ppocrv6/small/` |
+| 文字识别 | [ONNX](https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/main/inference.onnx) · [YAML](https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/main/inference.yml) · [官方页面](https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx/tree/main) | `models/ppocrv6_rec/small/` |
+
+文件名保留为 `inference.onnx`、`inference.yml`，后者包含后处理参数或字符字典。
+
+
+默认是完整 PP-OCRv6-small 流水线：
+
+- `config.det_model = "v6-small"`
+- `config.rec_model = "v6-small"`
+- `config.char_box_strategy = "stroke-ownership"`
+
+det + rec ONNX 共约 30 MB。先安装下载工具并拉取官方导出的模型：
+
+```bash
+conda run -n chardet python -m pip install huggingface_hub
+conda activate chardet
+python - <<'PY'
+from huggingface_hub import hf_hub_download
+
+for repo, target in [
+    ("PaddlePaddle/PP-OCRv6_small_det_onnx", "models/ppocrv6/small"),
+    ("PaddlePaddle/PP-OCRv6_small_rec_onnx", "models/ppocrv6_rec/small"),
+]:
+    for filename in ("inference.onnx", "inference.yml"):
+        hf_hub_download(repo, filename=filename, local_dir=target)
+PY
+```
+
+若模型缺失，启动会给出明确路径和下载提示。旧后端可从 [chineseocr_lite 模型目录](https://github.com/DayBreak-u/chineseocr_lite/tree/master/models)
+下载 `dbnet.onnx`、`crnn_lite_lstm.onnx`，放入本项目 `models/`。
+macOS 当前打包脚本同时收集这两个回退模型，因此打包前也需要下载。
+开启角度检测时还需同目录的 `angle_net.onnx`。无需 v6 模型的回退组合：
+
+```python
+# config.py
+det_model = "legacy"
+rec_model = "crnn"
+```
+
+也可保留旧检测、只换识别：`det_model = "legacy"`、
+`rec_model = "v6-small"`。
+
+图形化标注工具（推荐）：
+
+```bash
+conda run -n chardet python app.py
+```
+
+### Windows exe 打包
+
+项目提供 Windows x64 构建脚本 `build_windows.bat`。由于 PyInstaller 不能把
+macOS 二进制交叉编译成 Windows exe，请在 Windows 10/11（x64）上准备
+Miniconda/Anaconda，并在项目目录运行：
+
+```bat
+conda create -n chardet python=3.10 -y
+conda run -n chardet python -m pip install -r requirements.txt pyinstaller
+build_windows.bat
+```
+
+脚本会检查当前默认的 PP-OCRv6-small det/rec 模型，完成后输出 onedir 目录，
+启动程序位于 `dist\\interactive_annotator\\interactive_annotator.exe`。发布时必须
+复制整个 `dist\\interactive_annotator` 目录，不能只复制 exe。模型文件不进 Git，需要先按上面的下载方式
+放入 `models\\ppocrv6\\small` 和 `models\\ppocrv6_rec\\small`；如果使用
+其他档位，需同步修改 `config.py` 和 `app.spec` 的模型选择。legacy 模型是可选
+回退项，缺失时脚本只给出警告。
+
+PDF 输入优先使用内置 PyMuPDF；只有回退到 `pdf2image` 时才需要另外安装
+Windows 的 Poppler。
+
+命令行推理（每个命令都需要 `--images` 参数指定要识别的图片）：
+
+单词级别：`python model.py --level word --images images/0.png`
+
+字符级别：`python model.py --level char --images images/0.png`
+
+文本行级别：`python model.py --level line --images images/0.png`
+
+### 官方 PaddleOCR 3.7 用法
+
+官方流水线默认已是 PP-OCRv6 medium，并支持 ONNX Runtime 与
+`return_word_box`。直接使用官方包时，核心写法如下：
+
+```python
+from paddleocr import PaddleOCR
+
+ocr = PaddleOCR(
+    ocr_version="PP-OCRv6",
+    text_detection_model_name="PP-OCRv6_small_det",
+    text_recognition_model_name="PP-OCRv6_small_rec",
+    use_doc_orientation_classify=False,
+    use_doc_unwarping=False,
+    use_textline_orientation=False,
+    engine="onnxruntime",
+)
+results = ocr.predict("images/0.png", return_word_box=True)
+```
+
+见[官方 OCR Pipeline 教程](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/OCR.html)、
+[PP-OCRv6 说明](https://www.paddleocr.ai/latest/en/version3.x/algorithm/PP-OCRv6/PP-OCRv6.html)
+和[推理引擎配置](https://www.paddleocr.ai/latest/en/version3.x/inference_deployment/local_inference/inference_engine.html)。
+
+本项目没有引入完整 `paddleocr/paddlex/paddle` 运行栈，而是直接用
+ONNX Runtime 加载同一批官方导出模型。原因是应用已有 Qt 异步 worker、
+固定 JSON/Excel schema、旋转坐标反算和单字切片保存；直接 ONNX 的依赖更小，
+并能在官方 CTC 列坐标基础上加入笔画归属细化。测试辅助工具见
+[`bench/README.md`](bench/README.md)。
+
+## 参考
+
+旧 OCR 引擎来源：
+[chineseocr_lite](https://github.com/DayBreak-u/chineseocr_lite)。
+
+
+### 高分辨率图像与重新开始
+
+OCR 使用独立副本（默认最长边 2560 像素，`config.ocr_max_side` 可调整，非正值回退到 2560），检测、识别和笔画细化都在副本完成。结果按实际缩放后的宽高比例映射回原图；显示标注、JSON 和 PNG 切片始终基于原图像素。界面的 OCR 缩放只控制推理副本，不再改变原图大小。旧标注会提示重新 OCR。
+
+重新开始在保存或放弃旧标注后立即切换会话，旧推理取消并在后台安全收尾，旧结果不会覆盖新页面。取消检查位于检测后、逐行识别和细化之间；单次正在执行的模型调用结束后生效。关闭窗口仍等待线程退出，正在写入的保存任务仍需安全结束。
+
+
+黑底白字碑文的背景极性从多字行的文本核心区域判断，避免周围浅色纸边反转前景。规则竖排行用可靠笔画分量寻找字间空隙，并限制细碎碑面纹理连接到正文；近乎完全重合的检测候选在识别前按多边形 IoU 过滤，普通重叠保留。
+
+
+对于多列、字距稳定的黑底白字整页，增加页面级字距/字形尺寸估计：合并同列检测碎片，结合真实字间空隙修正局部位置，外围小噪点依据主体字形尺寸排除。常见尺寸不是硬裁剪模板，连通长笔画、窄字与短字仍保留自身形状。识别漏字但有可靠笔画的位置可输出 `unrecognized: true` 的无文本单字框；不会虚构文字标签。OCR 仅在整页几何确定后细化一次。
+
+保存当前页、保存并翻页均在后台逐张写入原图切片、JSON 和 Excel；保存成功后才加载目标页。页面解码、PDF 渲染和 JSON 读取也在后台，保存或加载失败会保留当前页面。保存期间继续编辑会保留新版本并取消自动翻页。
+
+当前页、后台预取与保存兜底 OCR 共用 `ocr_image.py` 的下采样与坐标回映；后台 JPEG 预取优先使用缩小解码，降采样后的检测输入不会再被过大的检测尺寸参数放大。状态栏显示实际原图和推理尺寸。
+
+保存当前页时只保留一张原图切片，顺手生成有尺寸上限的 Excel 缩略图供后续复用；Excel 直接在内存打包，避免每张切片再次解码和为每张缩略图创建临时文件。原始 PNG 不受缩略图尺寸影响。
+
+
+## macOS 通用应用（Intel / M 系列）
+
+执行 `bash build_mac.sh` 构建一个适配两种芯片的 `.app` 与发布 ZIP；无需开发者证书。使用者无需安装 Python。详见 [Mac 安装、使用与打包说明](MAC使用说明.md)。源码启动脚本为 `start_gui.sh`。
+
+
+## macOS
+
+激活 Python 3.10 / 3.11 环境后执行 `bash start_gui.sh`。
+构建可使用 `bash build_mac.sh arm64`（Apple Silicon）或 `bash build_mac.sh x86_64`（Intel）；
+不带参数构建双架构包。详细说明见 [macOS 使用说明](MAC使用说明.md)。
+
+## 仓库范围
+
+保留应用源码、打包脚本、自动化测试及必要固定样例。
+运行输出、临时试图、缓存和本机环境不纳入版本管理。
