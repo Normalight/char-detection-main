@@ -1,6 +1,5 @@
 """Smoke-test the frozen Windows app, then archive the complete onedir bundle."""
 from pathlib import Path
-import hashlib
 import shutil
 import subprocess
 import sys
@@ -18,10 +17,9 @@ def main():
     (bundle / "使用说明.txt").write_text(
         "解压后打开 " + NAME + ".exe。请保留整个文件夹及 _internal 目录。\n"
         "无需另装 Python 或模型；请选择自己的可写文件夹保存结果。\n", encoding="utf-8-sig")
-    archive = Path(shutil.make_archive(str(ROOT / "dist" / (NAME + "-windows-x64")),
-                                      "zip", root_dir=bundle.parent, base_dir=bundle.name))
-    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-    archive.with_suffix(".zip.sha256").write_text(digest + "  " + archive.name + "\n", encoding="utf-8")
+    shutil.make_archive(str(ROOT / "dist" / (NAME + "-windows-x64")),
+                                      "zip", root_dir=bundle.parent, base_dir=bundle.name)
+
 
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
-"""Validate release names and stage consistently named ZIPs and checksums."""
+"""Validate release names and stage consistently named application ZIPs."""
 import argparse
-import hashlib
 import os
 from pathlib import Path
 import re
@@ -29,12 +28,7 @@ def stage_archive(dist, project, version, target):
     destination.parent.mkdir(parents=True, exist_ok=True)
     source.replace(destination)
     source.with_suffix(".zip.sha256").unlink(missing_ok=True)
-    digest = hashlib.sha256()
-    with destination.open("rb") as stream:
-        while block := stream.read(1024 * 1024):
-            digest.update(block)
-    destination.with_suffix(".zip.sha256").write_text(
-        digest.hexdigest() + "  " + destination.name + "\n", encoding="utf-8")
+    destination.with_suffix(".zip.sha256").unlink(missing_ok=True)
     return destination
 
 

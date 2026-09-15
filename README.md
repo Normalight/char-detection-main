@@ -201,8 +201,8 @@ Mac 需要 macOS 14 或更新版本。每个 Mac ZIP 内都有 `MAC使用说明.
 只说明首次允许打开未使用 Developer ID 签名及公证的应用，以及软件使用方式。
 构建脚本保留本地完整性签名，不需要 Apple 开发者账号。
 
-在 Actions 的成功运行页面下载 Artifacts（保留 14 天）；解压 artifact 后再解压其中的安装包 ZIP。
-三种构建全部通过后，自动将 ZIP 与 SHA-256 上传到触发本次构建的 Release。
+在 Actions 的成功运行页面下载 Artifacts（保留 14 天）；下载到的就是应用 ZIP，解压一次即可使用。
+三种构建全部通过后，自动将 应用 ZIP 上传到触发本次构建的 Release。
 保存草稿、推送代码或单独推送标签均不触发打包；不会由流水线自动创建另一个 Release。
 标签需使用 `v主版本.次版本.修订号`，如 `v1.0.0` 或 `v1.0.0-rc.1`。
 请从包含当前工作流的提交创建版本标签；每次构建使用该 Release 标签对应的源码。
@@ -216,7 +216,7 @@ CI 使用 Python 3.11 和固定版本依赖；模型由 `packaging/download_mode
 本地构建仍可运行 `bash build_mac.sh arm64`、`bash build_mac.sh x86_64`；
 双架构通用包可在具备两种 Python 3.11 与 Rosetta 的 M 系列 Mac 上运行 `bash build_mac.sh universal`。
 
-安装包命名统一为 `仓库名-版本标签-平台-架构.zip`，校验文件追加 `.sha256`。
+安装包命名统一为 `仓库名-版本标签-平台-架构.zip`，不额外生成校验文件或嵌套压缩包。
 例如本仓库的 `v1.0.0`：
 
 - `char-detection-main-v1.0.0-windows-x64.zip`

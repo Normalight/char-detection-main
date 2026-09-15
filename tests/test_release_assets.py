@@ -1,5 +1,4 @@
-"""Release filenames and checksums must agree with the downloaded archives."""
-import hashlib
+"""Release artifacts must contain only the correctly named application ZIP."""
 import importlib.util
 from pathlib import Path
 import zipfile
@@ -13,16 +12,15 @@ spec.loader.exec_module(assets)
 
 
 @pytest.mark.parametrize("target", ["windows-x64", "macos-x86_64", "macos-arm64"])
-def test_archive_and_checksum_share_release_name(tmp_path, target):
+def test_release_contains_only_application_zip(tmp_path, target):
     archive = tmp_path / "旧名称.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
         bundle.writestr("应用/MAC使用说明.txt", "首次打开与使用方法")
     archive.with_suffix(".zip.sha256").write_text("obsolete checksum")
     result = assets.stage_archive(tmp_path, "char-detection-main", "v1.2.3-rc.1", target)
     assert result.name == f"char-detection-main-v1.2.3-rc.1-{target}.zip"
-    checksum, name = result.with_suffix(".zip.sha256").read_text().strip().split("  ")
-    assert checksum == hashlib.sha256(result.read_bytes()).hexdigest()
-    assert name == result.name
+    assert list(result.parent.iterdir()) == [result]
+    assert not list(tmp_path.rglob("*.sha256"))
     with zipfile.ZipFile(result) as bundle:
         assert bundle.read("应用/MAC使用说明.txt").decode() == "首次打开与使用方法"
     assert not list(tmp_path.glob("*.zip*"))
