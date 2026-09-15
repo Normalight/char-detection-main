@@ -81,7 +81,7 @@ class RecModelSwitchTest(unittest.TestCase):
                     cutbatch._build_rec_handle()
         msg = str(cm.exception)
         self.assertIn("v6 rec 模型文件不存在", msg)
-        self.assertIn("bench/README.md", msg)
+        self.assertIn("README.md", msg)
 
     def test_unknown_rec_model_raises(self):
         cutbatch.rec_model = "deepseek-v3"

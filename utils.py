@@ -188,7 +188,7 @@ def get_rotate_crop_image(img, points):
     把竖排中文单字/碑文旋转成横向扁图（"压扁 bug"）。
 
     标注/保存主线请改用 storage_utils.get_rotate_crop_image（无自动旋转）。
-    本函数仅保留给 model.py / cutbatch.py 等 OCR 推理路径使用。
+    本函数仅保留给 cutbatch.py 等 OCR 推理路径使用。
     """
     # --- 关键修复：复制一份坐标，避免修改原始传入的数组 ---
     points = points.copy()

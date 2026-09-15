@@ -1,5 +1,5 @@
 {
-  "image": "images/1.png",
+  "image": "tests/fixtures/images/1.png",
   "description": "Fixed OCR anchors from the reported vertical-page failure; bounds checked on original image pixels.",
   "columns": [
     {

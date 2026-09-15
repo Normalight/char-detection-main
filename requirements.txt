@@ -9,7 +9,7 @@ Pillow
 # v6 det/rec 的 inference.yml 参数与字典解析
 PyYAML
 
-# 几何运算（dbnet / model.py 间接依赖）
+# 几何运算（dbnet 后处理）
 Shapely
 pyclipper
 

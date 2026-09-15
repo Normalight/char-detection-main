@@ -139,44 +139,6 @@ build_windows.bat
 PDF 输入优先使用内置 PyMuPDF；只有回退到 `pdf2image` 时才需要另外安装
 Windows 的 Poppler。
 
-命令行推理（每个命令都需要 `--images` 参数指定要识别的图片）：
-
-单词级别：`python model.py --level word --images images/0.png`
-
-字符级别：`python model.py --level char --images images/0.png`
-
-文本行级别：`python model.py --level line --images images/0.png`
-
-### 官方 PaddleOCR 3.7 用法
-
-官方流水线默认已是 PP-OCRv6 medium，并支持 ONNX Runtime 与
-`return_word_box`。直接使用官方包时，核心写法如下：
-
-```python
-from paddleocr import PaddleOCR
-
-ocr = PaddleOCR(
-    ocr_version="PP-OCRv6",
-    text_detection_model_name="PP-OCRv6_small_det",
-    text_recognition_model_name="PP-OCRv6_small_rec",
-    use_doc_orientation_classify=False,
-    use_doc_unwarping=False,
-    use_textline_orientation=False,
-    engine="onnxruntime",
-)
-results = ocr.predict("images/0.png", return_word_box=True)
-```
-
-见[官方 OCR Pipeline 教程](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/OCR.html)、
-[PP-OCRv6 说明](https://www.paddleocr.ai/latest/en/version3.x/algorithm/PP-OCRv6/PP-OCRv6.html)
-和[推理引擎配置](https://www.paddleocr.ai/latest/en/version3.x/inference_deployment/local_inference/inference_engine.html)。
-
-本项目没有引入完整 `paddleocr/paddlex/paddle` 运行栈，而是直接用
-ONNX Runtime 加载同一批官方导出模型。原因是应用已有 Qt 异步 worker、
-固定 JSON/Excel schema、旋转坐标反算和单字切片保存；直接 ONNX 的依赖更小，
-并能在官方 CTC 列坐标基础上加入笔画归属细化。测试辅助工具见
-[`bench/README.md`](bench/README.md)。
-
 ## 参考
 
 旧 OCR 引擎来源：
@@ -217,3 +179,11 @@ OCR 使用独立副本（默认最长边 2560 像素，`config.ocr_max_side` 可
 
 保留应用源码、打包脚本、自动化测试及必要固定样例。
 运行输出、临时试图、缓存和本机环境不纳入版本管理。
+MegaHan 训练/复核、历史评测与命令行演示已移除；其测试源码按要求保留于 `tests/archive/`，不参与当前测试收集。
+
+## 测试
+
+```bash
+python -m pip install pytest
+python -m pytest tests/ -q
+```

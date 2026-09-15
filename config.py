@@ -63,7 +63,7 @@ ppocrv6_det_model_path = {
 # rec_model = "v6-medium" 用 PP-OCRv6 medium rec（最准，但 77MB + 慢 15×）
 #
 # v6 模型文件在 models/ppocrv6[_rec]/<tier>/（gitignored，走 HF 下载，
-# 下载方式见 bench/README.md）。polarity-aware 会按背景明暗选择切线证据：
+# 下载方式见 README.md）。polarity-aware 会按背景明暗选择切线证据：
 # 亮背景使用 Otsu 墨迹谷微调，纹理复杂的暗背景保留 CTC 中点；
 # 首尾框保留检测行完整边缘，避免自适应收缩裁掉外伸笔画；
 # projection-refined 保留旧固定极性路径，ctc-midpoint 则只使用中点。

@@ -82,7 +82,7 @@ app.py  ──QMainWindow、侧栏、工具栏、进度对话框──▶  annot
 - **QImage 缓存指纹**：`canvas_widget._fingerprint` 用 `(shape, dtype, _view_version, 头部字节 hash)`，
   **不能用 id()**——CPython 地址会被复用，缓存误命中会画错图。
 - **切片裁剪**走 `storage_utils.get_rotate_crop_image`，**不要**用 `utils.get_rotate_crop_image`——
-  后者会对竖排切片 `np.rot90`，把碑文 / 竖排中文压成横向扁图（`utilsre1.py` 就是当年失败的修复尝试）。
+  后者会对竖排切片 `np.rot90`，把碑文 / 竖排中文压成横向扁图。
 - PDF 渲染三级 fallback，任一级失败只 `logger.warning` 后落下一级；全失败才抛 `RuntimeError`。
 
 ## 模块清单
@@ -117,7 +117,7 @@ app.py  ──QMainWindow、侧栏、工具栏、进度对话框──▶  annot
 ### 清理后的仓库
 
 旧版单体入口、原型、备份、mayavi 演示和无关产物已删除。
-`tests/`、固定样例、`bench/` 中测试依赖的工具以及仍可配置的推理后端保留。
+仅保留当前 GUI、推理后端、打包和应用测试。MegaHan、历史 bench、命令行演示及配套素材已删除；旧实验测试在 `tests/archive/`，不参与收集。
 
 ## 常用命令
 
@@ -127,11 +127,6 @@ pip install -r requirements.txt
 
 # 主入口：图形化标注工具（推荐）
 python app.py
-
-# 命令行 demo（每条都要 --images）
-python model.py --level char  --images images/0.png
-python model.py --level word  --images images/0.png
-python model.py --level line  --images images/0.png
 
 # 单元测试（只测纯逻辑，不依赖 onnxruntime / QApplication 真实例化）
 python -m pytest tests/ -q
@@ -149,7 +144,6 @@ pyinstaller app.spec
 ## 工程约定
 
 - **日志**：用 `logging.getLogger(__name__)`，不要 `print`、不要裸 `except: print(...)`。
-  参考 commit `85f0ed9`。
 - **Qt 惰性导入**：`annotator_core.py` 顶层**不** import PySide6，相关 `from PySide6...`
   都写在方法内（`register_hotkeys` / `_msg_box` / `_process_events` / `_start_*`）。这样纯逻辑方法
   可在没有 Qt 的环境里单测。`app.py` / `canvas_widget.py` 顶层可自由 import Qt。
@@ -175,9 +169,9 @@ pyinstaller app.spec
 
 `.gitignore` 已忽略以下生成物，**不要**提交：
 
-- `output/` `interactive_output/` `data/` `outputs/` `docs/` `ppt_assets/`（运行 / PPT 任务产物）
+- `output/` `interactive_output/` `data/` `outputs/` `docs/superpowers/` `ppt_assets/`（运行 / PPT 任务产物）
 - `*.xlsx` `*.xls`（标注结果）
-- `build/` `dist/` `*.spec` 产物（`app.spec` 本身要提交）
+- `build/` `dist/` 打包产物（`app.spec` 和 `packaging/*.spec` 要提交）
 - `.idea/` `.vscode/` `.zcode/` `.superpowers/` `__pycache__/`（IDE / 工具元数据）
 
 ## 坐标与缩放词汇表（避免混用）

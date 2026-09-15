@@ -1,5 +1,5 @@
 {
-  "image": "images/c1.jpg",
+  "image": "tests/fixtures/images/c1.jpg",
   "columns": [
     {
       "row_box": [

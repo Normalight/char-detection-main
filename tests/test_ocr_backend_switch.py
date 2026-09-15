@@ -110,7 +110,7 @@ def test_missing_v6_detector_file_raises_download_hint():
                     raise AssertionError("missing detector model did not raise")
 
     assert "v6 det 模型文件不存在" in message
-    assert "bench/README.md" in message
+    assert "README.md" in message
 
 
 def test_config_exposes_full_v6_candidate():
@@ -145,14 +145,10 @@ def test_ocr_handle_does_not_expose_grouping_cache_id():
     assert not hasattr(recognizer, "rec_cache_id")
 
 
-def test_model_defaults_match_historical_benchmark_winner():
-    winner = json.loads(
-        Path("bench/recommended_backend.json").read_text(encoding="utf-8")
-    )
-    assert config.det_model == winner["det_model"]
-    assert config.rec_model == winner["rec_model"]
-    # Historical benchmark evaluated shared cuts, not independent glyph extents.
-    assert winner["char_box_strategy"] == "polarity-aware"
+def test_default_models_use_supported_small_pipeline():
+    assert config.det_model == "v6-small"
+    assert config.rec_model == "v6-small"
+    assert config.char_box_strategy == "stroke-ownership"
 
 
 def test_pyinstaller_collects_production_ppocrv6_without_bench_package():

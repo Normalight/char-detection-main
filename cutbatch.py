@@ -4,13 +4,10 @@ ort.set_default_logger_severity(3)  # ERROR level, 忽略 warning
 import os
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 import copy
 import logging
 import traceback
-import random
-import glob  # 用于查找文件
-import shutil  # 用于复制文件
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +46,7 @@ try:
 
     from crnn import CRNNHandle
     # from angnet import AngleNetHandle # 如果有角度检测，取消注释
-    from utils import get_rotate_crop_image, validate_and_prepare_polygon_points  # 确保这两个函数在 utils.py 中且导入正确
+    from utils import get_rotate_crop_image  # 确保这两个函数在 utils.py 中且导入正确
     from dbnet.dbnet_infer import DBNET
     from ppocrv6 import PPOcrV6Detector, PPOcrV6RecHandle
 except ImportError as e:
@@ -81,7 +78,7 @@ def _build_det_handle():
         if not os.path.exists(path):
             raise RuntimeError(
                 f"v6 det 模型文件不存在：{path}\n"
-                "下载方式见 bench/README.md"
+                "下载方式见 README.md"
                 f"（huggingface_hub 拉取 PP-OCRv6_{tier}_det_onnx）"
             )
         return (
@@ -116,7 +113,7 @@ def _build_rec_handle():
         if not os.path.exists(path):
             raise RuntimeError(
                 f"v6 rec 模型文件不存在：{path}\n"
-                f"下载方式见 bench/README.md（huggingface_hub 拉取 PP-OCRv6_{tier}_rec_onnx）"
+                f"下载方式见 README.md（huggingface_hub 拉取 PP-OCRv6_{tier}_rec_onnx）"
             )
         return (
             PPOcrV6RecHandle(
@@ -339,222 +336,3 @@ class OcrHandle(object):
         ocr_full_results = self.crnnRecWithBox(
             img_opencv_bgr_original, text_boxes_detected, text_scores_detected, **options)
         return map_results_to_source(ocr_full_results, prepared)
-
-
-def get_random_bgr_color():
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-
-
-# validate_and_prepare_polygon_points 函数应该在 utils.py 中，并从那里导入
-# from utils import validate_and_prepare_polygon_points
-
-if __name__ == "__main__":
-    # ---------- 参数配置区 ----------
-    INPUT_IMAGE_FOLDER = "/home/asus/Oracle/cut/cut1"
-    OUTPUT_ROOT_DIRECTORY = "/home/asus/Oracle/cut/cut_result12"
-    PROCESSING_LEVEL = "char"
-    DBNET_SHORT_SIDE = 630 # big:630 small:1280!!!!!
-    SAVE_DEBUG_IMAGE = True
-    DEBUG_FONT_PATH = "仿宋_GB2312.ttf"
-    DEBUG_FONT_SIZE_DEFAULT = 15
-    # ---------- 参数配置区结束 ----------
-
-    print(f"--- OCR 图像处理开始 ---")
-    print(f"输入图片文件夹: {os.path.abspath(INPUT_IMAGE_FOLDER)}")
-    print(f"输出根目录: {os.path.abspath(OUTPUT_ROOT_DIRECTORY)}")
-    print(f"处理级别: {PROCESSING_LEVEL}")
-    print(f"DBNET 短边尺寸: {DBNET_SHORT_SIDE}")
-
-    os.makedirs(OUTPUT_ROOT_DIRECTORY, exist_ok=True)
-    if not os.path.isdir(INPUT_IMAGE_FOLDER):
-        print(f"错误: 输入文件夹 '{INPUT_IMAGE_FOLDER}' 未找到。请创建该文件夹并将图片放入其中。")
-        exit()
-
-    supported_extensions = ('*.jpg', '*.jpeg', '*.png', '*.bmp', '*.tif', '*.tiff')
-    image_file_paths = []
-    for ext in supported_extensions:
-        image_file_paths.extend(glob.glob(os.path.join(INPUT_IMAGE_FOLDER, ext)))
-
-    if not image_file_paths:
-        print(f"在文件夹 '{INPUT_IMAGE_FOLDER}' 中未找到支持的图片文件。")
-        exit()
-
-    print(f"找到 {len(image_file_paths)} 张图片进行处理...")
-
-    try:
-        ocr_handler_instance = OcrHandle()
-    except Exception as e_init:  # 捕获OcrHandle初始化时的所有错误
-        print(f"初始化 OcrHandle 失败: {e_init}")
-        traceback.print_exc()
-        exit()
-
-    debug_pil_font = None
-    if SAVE_DEBUG_IMAGE:
-        try:
-            debug_pil_font = ImageFont.truetype(DEBUG_FONT_PATH, size=DEBUG_FONT_SIZE_DEFAULT)
-        except IOError:
-            print(f"警告: 字体文件 '{DEBUG_FONT_PATH}' 未找到。调试图像中的文本将使用默认字体。")
-            debug_pil_font = ImageFont.load_default()
-
-    total_images_processed_count = 0
-    for img_idx_loop, current_image_full_path in enumerate(image_file_paths):
-        print(f"\n[{img_idx_loop + 1}/{len(image_file_paths)}] 正在处理图片: {current_image_full_path}")
-
-        pil_rgb_image_original = None
-        opencv_bgr_img_original = None
-        image_processing_failed_fatally = False  # 标记当前图片处理是否遭遇严重错误
-
-        # 步骤 1: 加载和初步转换图片
-        try:
-            pil_rgb_image_original = Image.open(current_image_full_path).convert('RGB')
-            opencv_bgr_img_original = cv2.cvtColor(np.array(pil_rgb_image_original), cv2.COLOR_RGB2BGR)
-            if opencv_bgr_img_original is None or opencv_bgr_img_original.size == 0:
-                print(
-                    f"  错误: OpenCV 图像 (opencv_bgr_img_original) 在转换后为空或无效. 图片: {current_image_full_path}.")
-                image_processing_failed_fatally = True
-        except FileNotFoundError:
-            print(f"  错误: 图片文件未找到于 {current_image_full_path}. 跳过此图片的处理.")
-            continue  # 直接跳到下一张图片，不尝试复制
-        except Exception as e_open_convert:
-            print(f"  错误: 打开或转换图片 {current_image_full_path} 失败: {e_open_convert}.")
-            image_processing_failed_fatally = True  # 标记为失败，后续会尝试复制
-
-        # 创建当前图片的输出子目录（无论处理是否成功）
-        img_file_basename_no_ext = os.path.splitext(os.path.basename(current_image_full_path))[0]
-        output_subdir_current_img = os.path.join(OUTPUT_ROOT_DIRECTORY,
-                                                 f"{img_file_basename_no_ext}_processed")  # 统一命名
-        os.makedirs(output_subdir_current_img, exist_ok=True)
-
-        # 步骤 2: 只有在图片加载成功时才进行 OCR 和裁剪
-        if not image_processing_failed_fatally:
-            try:
-                # 步骤 2a: OCR 预测
-                all_ocr_block_results = ocr_handler_instance.text_predict(pil_rgb_image_original, DBNET_SHORT_SIDE)
-
-                if not all_ocr_block_results:
-                    print(f"  未在图片 {current_image_full_path} 中检测到任何文本内容（DBNET未返回结果）。")
-                    # 这种情况不标记为 fatal error，但也不会有字符被切割
-
-                # 准备调试图像绘制上下文 (如果需要)
-                pil_img_for_debug = None
-                pillow_draw_ctx = None
-                if SAVE_DEBUG_IMAGE and pil_rgb_image_original:
-                    pil_img_for_debug = pil_rgb_image_original.copy()
-                    pillow_draw_ctx = ImageDraw.Draw(pil_img_for_debug)
-
-                items_cropped_this_image = 0
-
-                # 步骤 2b: 字符/词/行 提取和保存 (这是最可能发生底层错误的地方)
-                # 将这个核心循环包裹在 try-except 中
-                try:
-                    if PROCESSING_LEVEL == "char":
-                        for text_block_res in all_ocr_block_results:  # 遍历 DBNET 检测到的每个文本块
-                            recognition_res_details = text_block_res.get('result', {})
-                            if 'char_list' in recognition_res_details and recognition_res_details['char_list']:
-                                for char_item_data in recognition_res_details['char_list']:  # 遍历块内的每个字符
-                                    char_text_val = char_item_data.get('char', '')
-                                    char_poly_pts_data = char_item_data.get('bbox')
-
-                                    char_poly_np_validated = validate_and_prepare_polygon_points(char_poly_pts_data,
-                                                                                                 f"字符 '{char_text_val}'")
-                                    if char_poly_np_validated is None:
-                                        continue
-
-                                        # 调用 get_rotate_crop_image
-                                    cropped_char_bgr = get_rotate_crop_image(opencv_bgr_img_original,
-                                                                             char_poly_np_validated)
-
-                                    if cropped_char_bgr is None or cropped_char_bgr.size == 0:
-                                        # print(f"    警告: 字符 '{char_text_val}' 裁剪结果为空或失败。")
-                                        continue
-
-                                    items_cropped_this_image += 1
-                                    output_filename = f"char_{items_cropped_this_image:04d}.png"
-                                    output_path = os.path.join(output_subdir_current_img, output_filename)
-                                    cv2.imwrite(output_path, cropped_char_bgr)
-
-                                    if SAVE_DEBUG_IMAGE and pillow_draw_ctx and debug_pil_font:
-                                        try:
-                                            color_bgr_tuple = get_random_bgr_color()  # OpenCV BGR tuple
-                                            pillow_draw_ctx.polygon(char_poly_np_validated.flatten().tolist(),
-                                                                    outline=(0, 238, 238), width=20)
-                                        except Exception as e_draw_char:
-                                            print(f"    绘制字符bbox时出错: {e_draw_char}")
-
-                    elif PROCESSING_LEVEL in ["word", "line"]:
-                        # ... (word/line 级别的处理逻辑，也需要类似的错误处理) ...
-                        # (为了简洁，这里省略，但您需要确保这部分也有对 get_rotate_crop_image 的调用保护)
-                        # 例如:
-                        for text_block_res in all_ocr_block_results:
-                            polygons_to_crop = []  # ... (填充 polygons_to_crop) ...
-                            if PROCESSING_LEVEL == "line":  # ...
-                                if text_block_res.get('bbox') is not None: polygons_to_crop.append(
-                                    text_block_res['bbox'])
-                            # ... (word 级别逻辑) ...
-
-                            for poly_pts_data in polygons_to_crop:
-                                poly_np_validated = validate_and_prepare_polygon_points(poly_pts_data, PROCESSING_LEVEL)
-                                if poly_np_validated is None: continue
-                                cropped_item_bgr = get_rotate_crop_image(opencv_bgr_img_original, poly_np_validated)
-                                if cropped_item_bgr is None or cropped_item_bgr.size == 0: continue
-                                items_cropped_this_image += 1
-                                # ... (保存和绘制) ...
-
-                    if items_cropped_this_image > 0:
-                        print(f"  已成功切割并保存 {items_cropped_this_image} 个 '{PROCESSING_LEVEL}' 级别的图像块。")
-                    elif all_ocr_block_results:  # 有检测结果但没切出字符
-                        print(
-                            f"  在级别 '{PROCESSING_LEVEL}' 下，未切割出任何图像块 (可能所有字符裁剪均失败或无有效字符bbox)。")
-                    # 如果 all_ocr_block_results 为空，则之前已经打印过无检测内容
-
-                except cv2.error as e_cv_processing:  # 捕获在字符/块处理循环中发生的 OpenCV 特定错误
-                    print(
-                        f"  错误 (致命): 在处理字符/块时发生 OpenCV 错误: {e_cv_processing}. 图片 '{current_image_full_path}' 的切割中止。")
-                    traceback.print_exc()
-                    image_processing_failed_fatally = True  # 标记此图片处理失败
-                except Exception as e_processing_general:  # 捕获其他 Python 错误
-                    print(
-                        f"  错误 (致命): 在处理字符/块时发生未知错误: {e_processing_general}. 图片 '{current_image_full_path}' 的切割中止。")
-                    traceback.print_exc()
-                    image_processing_failed_fatally = True  # 标记此图片处理失败
-                # -------- 字符/块处理循环的 try-except 结束 --------
-
-                # 保存调试图 (仅当未发生致命错误，并且有东西可画时)
-                if SAVE_DEBUG_IMAGE and pil_img_for_debug and not image_processing_failed_fatally:
-                    debug_output_filename = f"{img_file_basename_no_ext}_ed.jpg"
-                    if items_cropped_this_image == 0 and all_ocr_block_results:  # 有检测框但没切出字符
-                        debug_output_filename = f"{img_file_basename_no_ext}_debug_no_crop.jpg"
-
-                    debug_output_path = os.path.join(OUTPUT_ROOT_DIRECTORY, debug_output_filename)
-                    try:
-                        pil_img_for_debug.save(debug_output_path, format='JPEG')
-                        if items_cropped_this_image > 0 or not all_ocr_block_results:  # 正常或无检测结果
-                            print(f"  已保存调试图像到: {debug_output_path}")
-                        else:  # 有检测框但没切出
-                            print(f"  已保存调试图像（无成功裁剪）到: {debug_output_path}")
-                    except Exception as e_save_dbg:
-                        print(f"  错误: 保存调试图像 '{debug_output_path}' 失败: {e_save_dbg}")
-
-            except Exception as e_text_predict:  # 捕获 ocr_handler_instance.text_predict 本身的错误
-                print(
-                    f"  错误 (致命): 对图片 {current_image_full_path} 进行 ocr_predict 时发生严重错误: {e_text_predict}. 将复制原图。")
-                traceback.print_exc()
-                image_processing_failed_fatally = True
-
-        # 步骤 3: 如果当前图片的处理过程中发生了致命错误，复制原图
-        if image_processing_failed_fatally:
-            print(f"  由于处理 '{current_image_full_path}' 过程中发生错误，将直接复制原图片。")
-            failed_image_copy_name = f"{img_file_basename_no_ext}_FAILED_ORIGINAL{os.path.splitext(current_image_full_path)[1]}"  # 保留原扩展名
-            failed_image_copy_path = os.path.join(output_subdir_current_img, failed_image_copy_name)
-            try:
-                shutil.copyfile(current_image_full_path, failed_image_copy_path)
-                print(f"  已将问题图片复制到: {failed_image_copy_path}")
-            except Exception as e_copy_failed:
-                print(
-                    f"  错误: 复制问题图片 '{current_image_full_path}' 到 '{failed_image_copy_path}' 失败: {e_copy_failed}")
-
-        total_images_processed_count += 1
-
-    print(f"\n--- 所有图片处理完毕 ---")
-    print(f"总共尝试处理了 {total_images_processed_count} / {len(image_file_paths)} 张图片。")
-    print(f"结果保存在根目录: {os.path.abspath(OUTPUT_ROOT_DIRECTORY)}")
