@@ -533,7 +533,8 @@ class MainWindow(QMainWindow):
             self.out_edit.setText(p)
 
     def _start(self):
-        if getattr(getattr(self, '_auth_guard', None), 'locked', False):
+        from hanzi_auth import is_locked
+        if is_locked(self):
             return
         if self.core._quit_state != self.core.QUIT_IDLE:
             return
@@ -596,22 +597,17 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    from hanzi_auth.single_instance import acquire_instance
-    instance = acquire_instance(app, 'char-detection-main')
-    if instance is None:
-        return 0
     # PySide6 6.5+ 默认启用高 DPI 缩放，无需手动 setHighDpiScaleFactorRoundingPolicy。
-    from hanzi_auth import require_login, protect_window
-    session = require_login('char-detection-main')
+    from hanzi_auth import start_session, protect_window
+    session = start_session(app, 'char-detection-main')
     if session is None:
         return 0
     w = MainWindow()
-    instance.window = w
     def lock_session():
         w.canvas.releaseKeyboard()
         w.core._cancel_background_prefetch()
-    protect_window(w, session, w.core.save_current, lock_session)
-    w.check_updates_button.clicked.connect(w._update_controller.action.trigger)
+    protect_window(w, session, w.core.save_current, lock_session,
+                   update_button=w.check_updates_button)
     w.showMaximized()
     sys.exit(app.exec())
 

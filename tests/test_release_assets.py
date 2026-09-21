@@ -1,7 +1,9 @@
-"""Release artifacts must contain only the correctly named application ZIP."""
+"""Release artifacts must contain verified installers and matching update ZIPs."""
 import importlib.util
 from pathlib import Path
 import zipfile
+import hashlib
+import json
 
 import pytest
 
@@ -12,16 +14,23 @@ spec.loader.exec_module(assets)
 
 
 @pytest.mark.parametrize("target", ["windows-x64", "macos-x86_64", "macos-arm64"])
-def test_release_contains_only_application_zip(tmp_path, target):
+def test_release_contains_installer_and_matching_update(tmp_path, target):
     archive = tmp_path / "旧名称.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
         bundle.writestr("MAC使用说明.txt", "首次打开与使用方法")
         bundle.writestr("中文字符标注工具.app/Contents/Info.plist", "plist")
         bundle.writestr("中文字符标注工具.app/Contents/MacOS/launcher", "launcher")
     archive.with_suffix(".zip.sha256").write_text("obsolete checksum")
+    installer = tmp_path / (f"切字-v1.2.3-rc.1-{target}" + ('.dmg' if target.startswith('macos-') else '-Setup.exe'))
+    installer.write_bytes(b'installer')
+    installer.with_suffix(installer.suffix + '.json').write_text(json.dumps(dict(
+        product='char-detection-main', version='v1.2.3-rc.1', target=target,
+        name=installer.name, size=installer.stat().st_size,
+        sha256=hashlib.sha256(installer.read_bytes()).hexdigest(),
+        update_sha256=hashlib.sha256(archive.read_bytes()).hexdigest())))
     result = assets.stage_archive(tmp_path, "char-detection-main", "v1.2.3-rc.1", target)
     assert result.name == f"切字-v1.2.3-rc.1-{target}.zip"
-    assert list(result.parent.iterdir()) == [result]
+    assert len(list(result.parent.iterdir())) == 3
     assert not list(tmp_path.rglob("*.sha256"))
     with zipfile.ZipFile(result) as bundle:
         assert bundle.read("MAC使用说明.txt").decode() == "首次打开与使用方法"
@@ -67,3 +76,12 @@ def test_rejects_extra_mac_zip_entries(tmp_path, extra):
     with pytest.raises(ValueError, match="only the app"):
         assets.stage_archive(tmp_path, "group-by-character", "v1.0.0", "macos-arm64")
     assert archive.exists()
+
+
+def test_missing_installer_keeps_update_archive_unstaged(tmp_path):
+    archive = tmp_path / 'update.zip'
+    archive.write_bytes(b'update')
+    with pytest.raises(ValueError, match='installer'):
+        assets.stage_archive(tmp_path, 'group-by-character', 'v1.0.0', 'windows-x64')
+    assert archive.exists()
+    assert not (tmp_path / 'release').exists()

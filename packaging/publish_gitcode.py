@@ -141,14 +141,17 @@ def main():
     targets = ('windows-x64', 'macos-x86_64', 'macos-arm64')
     if len(files) != 3 or not all(sum(f.name.endswith('-' + t + '.zip') for f in files) == 1 for t in targets):
         raise RuntimeError('Expected exactly one installer for each of the three platforms')
+    installers = sorted(p for p in args.assets.rglob('*') if p.suffix == '.dmg' or p.name.endswith('-Setup.exe'))
+    if installers and (len(installers) != 3 or not all(sum(f.name.endswith('-' + t + ('.dmg' if t.startswith('macos-') else '-Setup.exe')) for f in installers) == 1 for t in targets)):
+        raise RuntimeError('Native installer set is incomplete')
     body = release.get('body') or ''
     publisher.ensure_release(tag, release.get('name') or tag, body)
-    for file in files:
+    for file in files + installers:
         publisher.upload(tag, file)
     for attempt in range(6):
         published = publisher.release(tag)
         assets = {a['name']: a for a in published.get('assets', [])}
-        if all(f.name in assets for f in files):
+        if all(f.name in assets for f in files + installers):
             break
         time.sleep(5)
     else:

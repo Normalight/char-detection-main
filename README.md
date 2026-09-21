@@ -193,7 +193,7 @@ python -m pytest tests/ -q
 
 在 GitHub 发布 Release（正式版或预发布版）时，自动运行 **Build desktop apps**，分别构建：
 
-- Windows x64：解压后运行 exe，保留整个文件夹。
+- Windows x64：运行 Setup.exe，按向导安装。
 - macOS Intel（x86_64）：使用 Intel 原生 runner 构建。
 - macOS Apple Silicon（arm64 / M 系列）：使用 ARM 原生 runner 构建。
 
@@ -201,8 +201,8 @@ Mac 需要 macOS 14 或更新版本。每个 Mac ZIP 内都有 `MAC使用说明.
 只说明首次允许打开未使用 Developer ID 签名及公证的应用，以及软件使用方式。
 构建脚本保留本地完整性签名，不需要 Apple 开发者账号。
 
-在 Actions 的成功运行页面下载 Artifacts（保留 14 天）；下载到的就是应用 ZIP，解压一次即可使用。
-三种构建全部通过后，自动将 应用 ZIP 上传到触发本次构建的 Release。
+在 Actions 的成功运行页面下载 Artifacts（保留 14 天）；包含各平台安装器、自动更新 ZIP 及构建校验记录。
+三种构建全部通过后，自动将安装器和更新包上传到触发本次构建的 Release。
 保存草稿、推送代码或单独推送标签均不触发打包；不会由流水线自动创建另一个 Release。
 标签需使用 `v主版本.次版本.修订号`，如 `v1.0.0` 或 `v1.0.0-rc.1`。
 请从包含当前工作流的提交创建版本标签；每次构建使用该 Release 标签对应的源码。
@@ -216,16 +216,16 @@ CI 使用 Python 3.11 和固定版本依赖；模型由 `packaging/download_mode
 本地构建仍可运行 `bash build_mac.sh arm64`、`bash build_mac.sh x86_64`；
 双架构通用包可在具备两种 Python 3.11 与 Rosetta 的 M 系列 Mac 上运行 `bash build_mac.sh universal`。
 
-安装包命名统一为 `切字-版本标签-平台-架构.zip`，不额外生成校验文件或嵌套压缩包。
+首次安装使用 `切字-版本标签-macos-架构.dmg` 或 `切字-版本标签-windows-x64-Setup.exe`。ZIP 用于软件内更新，安装器附带与其对应的构建校验记录。
 例如本仓库的 `v1.0.0`：
 
-- `切字-v1.0.0-windows-x64.zip`
-- `切字-v1.0.0-macos-x86_64.zip`（Intel）
-- `切字-v1.0.0-macos-arm64.zip`（M 系列）
+- `切字-v1.0.0-windows-x64-Setup.exe`
+- `切字-v1.0.0-macos-x86_64.dmg`（Intel）
+- `切字-v1.0.0-macos-arm64.dmg`（M 系列）
 
 文件名以标签为准，与可自由填写的 Release 标题无关；应用内名称保持中文。
 
-Mac ZIP 根目录只有 `中文字符标注工具.app` 与 `MAC使用说明.txt`，解压后直接打开应用；不包含外层目录、启动脚本或依赖清单。
+Mac ZIP 根目录只有 `中文字符标注工具.app` 与 `MAC使用说明.txt`，供软件内更新解压替换；不包含外层目录、启动脚本或依赖清单。
 本地构建通过 `PACKAGE_VERSION=v1.0.0` 指定包名版本，未指定时为 `v0.0.0-dev`。
 
 
@@ -250,8 +250,14 @@ Mac ZIP 根目录只有 `中文字符标注工具.app` 与 `MAC使用说明.txt`
 
 发布 GitHub `vMAJOR.MINOR.PATCH` Release 后，Actions 构建三个平台安装包，上传 GitHub，再复用同一批 Artifact 上传 GitCode。需要仓库变量 `GITCODE_OWNER`、`GITCODE_REPO` 和 Secret `GITCODE_TOKEN`。同步可重跑，已存在的同名附件保留；替换已发布内容应使用新版本号。
 
-同步会将三个安装包的公开下载链接、文件大小和 SHA-256 上传为 GitCode 发行版的 `hanzi-update.json`，供客户端读取；同一份信息也保存在 `gitcode-release-metadata` Artifact。GitCode 仓库需允许用户公开下载；凭据仅用于 CI 发布，不放入客户端。
+同步会将三个更新 ZIP 的公开下载链接、文件大小和 SHA-256 上传为 GitCode 发行版的 `hanzi-update.json`，供客户端读取；同一份信息也保存在 `gitcode-release-metadata` Artifact。GitCode 仓库需允许用户公开下载；凭据仅用于 CI 发布，不放入客户端。
 
 ### 自动递增发布版本
 
 在 GitHub Actions 的 **Build desktop apps → Run workflow** 中勾选 **Build and publish a new version**，默认 `patch` 将 `v1.0.0` 递增为 `v1.0.1`；可选 `minor` 或 `major`。流程同时检查源码仓库与公开安装包仓库的已有正式版本，三个平台共用同一新版本，构建成功后发布并同步。未勾选时仅生成开发构建。手动发布 GitHub Release 时沿用其标签。
+
+### 桌面安装包
+
+Mac 下载与芯片对应的 `.dmg`，双击后将软件拖到右侧“应用程序”，再从“应用程序”打开。Windows 下载 `-Setup.exe`，按向导选择安装位置和快捷方式；可从系统“已安装的应用”卸载。Windows 默认安装到当前用户目录，无需管理员权限。
+
+构建同时保留 ZIP，供软件内自动更新使用。DMG/Setup 与 ZIP 的版本、平台和校验和在发布前一并检查。Windows 本地打包需先安装 Inno Setup 7；CI 会自动安装并验证其校验和，并执行安装、启动检查和卸载。安装器的共享实现位于 hanzi-auth/tools/native_installers.py，经 tools/sync_desktop.py 同步到两个客户端。

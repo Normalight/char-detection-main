@@ -59,7 +59,7 @@ jobs:
         run: |
           existing=$(gh release view "$VERSION" --json targetCommitish --jq .targetCommitish)
           [ "$existing" = "$SOURCE_SHA" ] || { echo "Release belongs to a different source build"; exit 1; }
-          gh release upload "$VERSION" release-assets/*.zip --clobber
+          gh release upload "$VERSION" release-assets/* --clobber
           gh release edit "$VERSION" --draft=false
       - name: Publish verified public installers
         env:

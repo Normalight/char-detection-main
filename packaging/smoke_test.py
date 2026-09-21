@@ -29,6 +29,16 @@ def smoke_test():
         owner.close()
         assert duplicate.acquire()
         duplicate.close()
+    from hanzi_auth.credentials import backend
+    import uuid
+    vault = backend()
+    service = 'HanziTools.SmokeTest.' + uuid.uuid4().hex
+    try:
+        vault.set_password(service, 'smoke-test', 'temporary-smoke-value')
+        assert vault.get_password(service, 'smoke-test') == 'temporary-smoke-value'
+    finally:
+        vault.delete_password(service, 'smoke-test')
+    assert vault.get_password(service, 'smoke-test') is None
     login = LoginDialog(product)
     assert login.server_url.startswith(("https://", "http://"))
     login.reject()

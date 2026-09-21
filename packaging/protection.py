@@ -35,7 +35,7 @@ def prepare(root):
         raise RuntimeError('请先安装 requirements.txt 中的 hanzi-auth 包')
     auth = Path(spec.origin).parent
     (source / 'hanzi_auth').mkdir()
-    for name in ('__init__.py', 'desktop.py', 'policy.py', 'channel.py', 'single_instance.py', 'updates.py', 'update_ui.py'):
+    for name in ('__init__.py', 'desktop.py', 'policy.py', 'channel.py', 'single_instance.py', 'credentials.py', 'updates.py', 'update_ui.py'):
         shutil.copy2(auth / name, source / 'hanzi_auth' / name)
     return source
 
@@ -59,7 +59,7 @@ def apply(analysis, source):
             continue
         selected.append({'name': name, 'source': str(file), 'relative': relative.as_posix()})
     required = {'app.py', 'hanzi_auth/desktop.py', 'hanzi_auth/policy.py', 'hanzi_auth/channel.py',
-                'hanzi_auth/single_instance.py', 'hanzi_auth/updates.py', 'hanzi_auth/update_ui.py'}
+                'hanzi_auth/credentials.py', 'hanzi_auth/single_instance.py', 'hanzi_auth/updates.py', 'hanzi_auth/update_ui.py'}
     if not required <= {item['relative'] for item in selected}:
         raise RuntimeError('业务入口或账号验证模块未进入保护包')
     (base / 'modules.json').write_text(json.dumps(selected), encoding='utf-8')

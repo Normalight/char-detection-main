@@ -23,6 +23,13 @@ def main():
     shutil.make_archive(str(ROOT / "dist" / stem),
                                       "zip", root_dir=bundle.parent, base_dir=bundle.name)
 
+    from native_installers import main as build_installer
+    sys.argv = ['native_installers.py', '--product', 'char-detection-main',
+                '--version', os.environ.get('PACKAGE_VERSION', 'v0.0.0-dev'),
+                '--target', 'windows-x64', '--bundle', str(bundle),
+                '--archive', str(ROOT / 'dist' / (stem + '.zip')), '--smoke-test']
+    build_installer()
+
 
 
 if __name__ == "__main__":
