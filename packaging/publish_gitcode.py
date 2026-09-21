@@ -69,21 +69,24 @@ class Publisher:
             if any(asset.get('name') == file.name for asset in (existing or {}).get('assets', [])):
                 print('Existing attachment retained:', file.name)
                 return
+            print('Requesting upload ticket:', file.name, flush=True)
             ticket = self.api('GET', '/releases/' + quote(tag, safe='') + '/upload_url',
                               params={'file_name': file.name})
             url = ticket['url']
             if urlsplit(url).scheme != 'https':
                 raise RuntimeError('Upload URL must use HTTPS')
+            print('Uploading bytes:', file.stat().st_size, 'to', urlsplit(url).hostname, flush=True)
             try:
                 # Separate request: never forward the GitCode bearer to object storage.
                 with file.open('rb') as data:
                     result = requests.put(url, headers=ticket['headers'], data=data,
-                                          timeout=(30, 900), allow_redirects=False)
+                                          timeout=(30, 120), allow_redirects=False)
                 if 200 <= result.status_code < 300:
                     print('Uploaded:', file.name)
                     return
-            except requests.RequestException:
-                pass
+                print('Storage response:', result.status_code, flush=True)
+            except requests.RequestException as exc:
+                print('Storage transport:', type(exc).__name__, flush=True)
             if attempt == 3:
                 raise RuntimeError('Attachment upload failed: ' + file.name)
             time.sleep(2 ** attempt)
@@ -127,7 +130,10 @@ def main():
         with file.open('rb') as stream:
             digest = hashlib.file_digest(stream, 'sha256').hexdigest()
         # Stable public API link, no signed upload URL or credential in output.
-        url = publisher.base + '/releases/' + quote(tag, safe='') + '/attach_files/' + quote(file.name, safe='') + '/download'
+        url = assets[file.name]['browser_download_url']
+        host = urlsplit(url).hostname or ''
+        if urlsplit(url).scheme != 'https' or not (host == 'gitcode.com' or host.endswith('.gitcode.com')):
+            raise RuntimeError('GitCode returned an unexpected public download host')
         records.append({'name': file.name, 'version': tag, 'size': file.stat().st_size,
                         'sha256': digest, 'url': url})
     Path('gitcode-release.json').write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding='utf-8')
