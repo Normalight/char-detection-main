@@ -54,7 +54,7 @@ def apply(analysis, source):
         try:
             relative = file.relative_to(source)
         except ValueError:
-            if file.is_relative_to(project) or name == 'hanzi_auth' or name.startswith('hanzi_auth.'):
+            if (file.is_relative_to(project) and not file.is_relative_to(Path(sys.prefix).resolve())) or name == 'hanzi_auth' or name.startswith('hanzi_auth.'):
                 raise RuntimeError(f'模块未从保护暂存目录分析：{name}')
             continue
         selected.append({'name': name, 'source': str(file), 'relative': relative.as_posix()})

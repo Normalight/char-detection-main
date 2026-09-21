@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import runpy
 import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -77,3 +78,22 @@ def test_original_checkout_module_is_rejected(protection):
     analysis.pure.append(('extra', str(source.parents[2] / 'extra.py'), 'PYMODULE'))
     with pytest.raises(RuntimeError, match='模块未从保护暂存目录分析'):
         helper['apply'](analysis, source)
+
+
+def test_project_local_virtualenv_dependencies_remain_uncompiled(protection, monkeypatch):
+    helper, source, analysis = protection
+    prefix = source.parents[2] / 'build/mac-env-arm64'
+    dependency = ('pkg_resources', str(prefix / 'lib/site-packages/pkg_resources/__init__.py'), 'PYMODULE')
+    analysis.pure.append(dependency)
+    monkeypatch.setattr(sys, 'prefix', str(prefix))
+    suffix = importlib.machinery.EXTENSION_SUFFIXES[0]
+    def compile_stub(*args, **kwargs):
+        modules = json.loads((source.parent / 'modules.json').read_text())
+        assert not any(m['name'] == 'pkg_resources' for m in modules)
+        for module in modules:
+            binary = source.parent / 'native' / (module['name'].replace('.', '/') + suffix)
+            binary.parent.mkdir(parents=True, exist_ok=True)
+            binary.write_bytes(b'native-test-fixture')
+    monkeypatch.setattr(subprocess, 'run', compile_stub)
+    helper['apply'](analysis, source)
+    assert dependency in analysis.pure
