@@ -47,3 +47,41 @@ def test_auth_failure_is_not_treated_as_missing_release():
     with pytest.raises(m.APIError):
         p.ensure_release('v1.0.0','title','body')
     assert p.api.call_count == 1
+
+
+def test_standalone_sync_reads_explicit_release_event(monkeypatch, tmp_path):
+    import json
+    import sys
+    event = tmp_path / 'release-event.json'
+    event.write_text(json.dumps({'release': {'tag_name': 'v1.0.0', 'name': '1.0.0', 'body': 'notes'}}))
+    files = []
+    for target in ('windows-x64', 'macos-arm64', 'macos-x86_64'):
+        f = tmp_path / ('app-v1.0.0-' + target + '.zip')
+        f.write_bytes(b'test')
+        files.append(f)
+    client = Mock()
+    client.release.return_value = {'assets': [
+        {'name': f.name, 'browser_download_url': 'https://gitcode.com/release/' + f.name}
+        for f in files]}
+    monkeypatch.setattr(m, 'Publisher', Mock(return_value=client))
+    monkeypatch.setattr(sys, 'argv', ['publish', '--event', str(event), '--assets', str(tmp_path)])
+    for key in ('GITCODE_OWNER', 'GITCODE_REPO', 'GITCODE_TOKEN'):
+        monkeypatch.setenv(key, 'test-value')
+    monkeypatch.setenv('GITHUB_EVENT_PATH', str(tmp_path / 'unused-dispatch-event.json'))
+    monkeypatch.delenv('GITHUB_STEP_SUMMARY', raising=False)
+    monkeypatch.chdir(tmp_path)
+    m.main()
+    client.ensure_release.assert_called_once_with('v1.0.0', '1.0.0', 'notes')
+    assert client.upload.call_count == 3
+    assert len(json.loads((tmp_path / 'gitcode-release.json').read_text())) == 3
+
+
+def test_upload_reader_preserves_content_length(tmp_path):
+    f = tmp_path / 'file.zip'
+    f.write_bytes(b'archive fixture')
+    with f.open('rb') as stream:
+        reader = m.UploadReader(stream, f.name)
+        request = m.requests.Request('PUT', 'https://storage.example/upload', data=reader).prepare()
+        assert request.headers['Content-Length'] == str(f.stat().st_size)
+        assert 'Transfer-Encoding' not in request.headers
+        assert reader.read() == b'archive fixture'

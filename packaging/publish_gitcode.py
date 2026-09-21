@@ -16,6 +16,33 @@ class APIError(RuntimeError):
         super().__init__(f"GitCode API returned HTTP {status}")
 
 
+class UploadReader:
+    """Keep a known Content-Length and report progress without logging signed URLs."""
+    mode = 'rb'
+
+    def __init__(self, stream, label):
+        self.stream = stream
+        self.label = label
+        self.total = os.fstat(stream.fileno()).st_size
+        self.reported = 0
+        self.started = time.monotonic()
+
+    def __len__(self):
+        return self.total
+
+    def tell(self):
+        return self.stream.tell()
+
+    def read(self, size=-1):
+        chunk = self.stream.read(size)
+        done = self.stream.tell()
+        if done - self.reported >= 4 * 1024 * 1024 or not chunk:
+            elapsed = max(time.monotonic() - self.started, 0.001)
+            print(f'Upload {self.label}: {done}/{self.total} bytes, {done / elapsed / 1024:.0f} KiB/s', flush=True)
+            self.reported = done
+        return chunk
+
+
 class Publisher:
     def __init__(self, owner, repo, token):
         self.base = f"https://api.gitcode.com/api/v5/repos/{quote(owner, safe='')}/{quote(repo, safe='')}"
@@ -79,7 +106,7 @@ class Publisher:
             try:
                 # Separate request: never forward the GitCode bearer to object storage.
                 with file.open('rb') as data:
-                    result = requests.put(url, headers=ticket['headers'], data=data,
+                    result = requests.put(url, headers=ticket['headers'], data=UploadReader(data, file.name),
                                           timeout=(30, 120), allow_redirects=False)
                 if 200 <= result.status_code < 300:
                     print('Uploaded:', file.name)
