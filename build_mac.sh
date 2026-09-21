@@ -11,7 +11,12 @@ case "$TARGET" in universal) ARCHES=(arm64 x86_64);; arm64|x86_64) ARCHES=("$TAR
 xcrun --find clang >/dev/null || { echo '请先执行 xcode-select --install' >&2; exit 1; }
 # Use actual developer tools instead of /usr/bin xcrun stubs under Rosetta.
 export PATH="$(dirname "$(xcrun --find lipo)"):$PATH"
+# Framework Python does not always supply an SDK sysroot to extension builds.
+export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+export CC="$(xcrun --find clang)"
+export CXX="$(xcrun --find clang++)"
 for CPU in "${ARCHES[@]}"; do
+    export ARCHFLAGS="-arch $CPU"
     export PYINSTALLER_CONFIG_DIR="$ROOT/build/mac-cache-$CPU"
     if [[ "$CPU" == arm64 ]]; then PY="${PYTHON_ARM64:-}"; else PY="${PYTHON_X86_64:-}"; fi
     if [[ -z "$PY" ]]; then
