@@ -455,7 +455,7 @@ class MainWindow(QMainWindow):
         self.top_panel.layout().addWidget(self.start_button)
 
     def _build_toolbar(self):
-        title = QLabel("工具栏（等同快捷键）")
+        title = QLabel("工具栏")
         title.setStyleSheet("font-weight: bold;")
         self.tools_panel.layout().addWidget(title)
 
@@ -492,6 +492,9 @@ class MainWindow(QMainWindow):
             b.clicked.connect(cb)
             grid.addWidget(b, r, c)
 
+        self.check_updates_button = self._make_tool_button("检查更新")
+        row, column = divmod(len(buttons), 2)
+        grid.addWidget(self.check_updates_button, row, column)
         self.tools_panel.layout().addWidget(grid_host)
         # 不再加 addStretch(1)：原来这行把工具栏顶到上沿、hint 被挤很远；
         # 现在让 hint 紧跟工具栏，整列自然顺排。
@@ -599,6 +602,7 @@ def main():
         w.canvas.releaseKeyboard()
         w.core._cancel_background_prefetch()
     protect_window(w, session, w.core.save_current, lock_session)
+    w.check_updates_button.clicked.connect(w._update_controller.action.trigger)
     w.showMaximized()
     sys.exit(app.exec())
 

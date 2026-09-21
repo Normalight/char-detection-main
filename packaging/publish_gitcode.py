@@ -165,6 +165,16 @@ def main():
         records.append({'name': file.name, 'version': tag, 'size': file.stat().st_size,
                         'sha256': digest, 'url': url})
     Path('gitcode-release.json').write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding='utf-8')
+    manifest = Path('hanzi-update.json')
+    manifest.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding='utf-8')
+    publisher.upload(tag, manifest)
+    for attempt in range(6):
+        published = publisher.release(tag)
+        if any(a.get('name') == manifest.name for a in published.get('assets', [])):
+            break
+        time.sleep(5)
+    else:
+        raise RuntimeError('GitCode update manifest upload was not confirmed')
     summary = os.environ.get('GITHUB_STEP_SUMMARY')
     if summary:
         with open(summary, 'a', encoding='utf-8') as out:

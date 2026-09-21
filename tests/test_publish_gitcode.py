@@ -62,7 +62,7 @@ def test_standalone_sync_reads_explicit_release_event(monkeypatch, tmp_path):
     client = Mock()
     client.release.return_value = {'assets': [
         {'name': f.name, 'browser_download_url': 'https://gitcode.com/release/' + f.name}
-        for f in files]}
+        for f in files] + [{'name': 'hanzi-update.json'}]}
     monkeypatch.setattr(m, 'Publisher', Mock(return_value=client))
     monkeypatch.setattr(sys, 'argv', ['publish', '--event', str(event), '--assets', str(tmp_path)])
     for key in ('GITCODE_OWNER', 'GITCODE_REPO', 'GITCODE_TOKEN'):
@@ -72,7 +72,8 @@ def test_standalone_sync_reads_explicit_release_event(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     m.main()
     client.ensure_release.assert_called_once_with('v1.0.0', '1.0.0', 'notes')
-    assert client.upload.call_count == 3
+    assert client.upload.call_count == 4
+    assert json.loads((tmp_path / 'hanzi-update.json').read_text()) == json.loads((tmp_path / 'gitcode-release.json').read_text())
     records = json.loads((tmp_path / 'gitcode-release.json').read_text())
     assert len(records) == 3
     assert all(record['url'].isascii() for record in records)
