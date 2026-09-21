@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import time
@@ -43,7 +44,8 @@ def stage_assets(directory, stage, product, version, source_commit):
         if path.is_symlink() or not path.is_file():
             raise PublishError('Expected a regular ZIP file')
         with zipfile.ZipFile(path) as archive:
-            entries = [i for i in archive.infolist() if i.filename.split('/')[-1] == 'build_info.json']
+            entries = [i for i in archive.infolist() if i.filename.split('/')[-1] == 'build_info.json'
+                       and not stat.S_ISLNK(i.external_attr >> 16)]
             if not entries or len(entries) > 16:
                 raise PublishError('Missing build_info.json; rebuild the installer')
             for entry in entries:

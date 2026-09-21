@@ -64,3 +64,16 @@ def test_publish_complete_draft_and_safe_rerun(tmp_path):
     assert len(client.calls)==count
     first=next(iter(client.files.values()));first['digest']='sha256:'+'f'*64
     with pytest.raises(module.PublishError,match='differs'):module.publish(client,stage,manifest)
+
+
+def test_mac_metadata_symlink_is_not_parsed_as_json(tmp_path):
+    import stat
+    source=tmp_path/'input';make_packages(source)
+    for file in source.glob('*macos*.zip'):
+        with zipfile.ZipFile(file,'a') as archive:
+            info=zipfile.ZipInfo('App.app/Contents/Frameworks/build_info.json')
+            info.create_system=3
+            info.external_attr=(stat.S_IFLNK|0o777)<<16
+            archive.writestr(info,'../Resources/build_info.json')
+    manifest=module.stage_assets(source,tmp_path/'stage','char-detection-main','v1.2.0','a'*40)
+    assert len(manifest['assets'])==3
