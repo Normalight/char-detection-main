@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import urllib.request
 from hanzi_auth.updates import PRODUCTS, TARGETS, parsed_version, validate_release
-from hanzi_auth.policy import server_url
+from hanzi_auth.policy import server_url, uses_encrypted_channel
 
 
 def main():
@@ -35,12 +35,18 @@ def main():
         if not args.url:
             parser.error('--server 需要同时填写 --url')
         url = server_url(args.server)
+        if uses_encrypted_channel(url):
+            parser.error('管理操作请连接 SSH 隧道的本机地址。')
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+        opener = urllib.request.build_opener(NoRedirect())
         def request(path, body, token='', method='POST'):
             headers={'Content-Type':'application/json'}
             if token:
                 headers['Authorization']='Bearer '+token
             req=urllib.request.Request(url+path,data=json.dumps(body).encode(),headers=headers,method=method)
-            with urllib.request.urlopen(req,timeout=20) as response:
+            with opener.open(req,timeout=20) as response:
                 return json.load(response)
         session=request('/api/login',{'username':args.admin,'password':getpass.getpass('管理员密码：'),'product':'admin'})
         try:
