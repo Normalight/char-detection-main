@@ -86,7 +86,21 @@ class GitHub:
         return json.loads(result) if result is not None else None
 
     def release(self, tag):
-        return self.api(f'repos/{PUBLIC_REPO}/releases/tags/{tag}', missing_ok=True)
+        published = self.api(f'repos/{PUBLIC_REPO}/releases/tags/{tag}', missing_ok=True)
+        if published is not None:
+            return published
+        # The tag endpoint does not return a draft before its tag is published.
+        # Authenticated release listings include drafts and let retries reuse them.
+        for page in range(1, 101):
+            releases = self.api(f'repos/{PUBLIC_REPO}/releases?per_page=100&page={page}')
+            matches = [r for r in releases if r['tag_name'] == tag]
+            if len(matches) > 1:
+                raise PublishError('Multiple release drafts share this tag; review them manually')
+            if matches:
+                return matches[0]
+            if len(releases) < 100:
+                return None
+        raise PublishError('Release listing is too large to safely locate the draft')
 
     def assets(self, release_id):
         return self.api(f'repos/{PUBLIC_REPO}/releases/{release_id}/assets?per_page=100')

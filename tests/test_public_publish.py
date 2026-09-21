@@ -77,3 +77,15 @@ def test_mac_metadata_symlink_is_not_parsed_as_json(tmp_path):
             archive.writestr(info,'../Resources/build_info.json')
     manifest=module.stage_assets(source,tmp_path/'stage','char-detection-main','v1.2.0','a'*40)
     assert len(manifest['assets'])==3
+
+
+def test_tag_lookup_reuses_unpublished_draft(monkeypatch):
+    client=module.GitHub()
+    calls=[]
+    def api(path,missing_ok=False):
+        calls.append(path)
+        if '/tags/' in path:return None
+        return [{'id':42,'tag_name':'char-detection-main-v1.2.0','draft':True}]
+    monkeypatch.setattr(client,'api',api)
+    assert client.release('char-detection-main-v1.2.0')['id']==42
+    assert len(calls)==2
