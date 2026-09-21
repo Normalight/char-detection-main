@@ -129,7 +129,13 @@ def publish(client, stage, manifest):
         except PublishError:
             if client.release(tag) is None:
                 raise
-        release = client.release(tag)
+        for attempt in range(6):
+            release = client.release(tag)
+            if release is not None:
+                break
+            time.sleep(2)
+        if release is None:
+            raise PublishError('New draft is not visible yet; rerun publication to reuse it')
     files = [Path(stage)/a['name'] for a in manifest['assets']]
     files += [Path(stage)/'SHA256SUMS.txt', Path(stage)/'release-manifest.json']
     expected = {f.name: dict(size=f.stat().st_size, sha256=digest(f)) for f in files}
