@@ -21,7 +21,7 @@ def smoke_test():
     product = 'char-detection-main'
     assert build_info(product)["product"] == product
     login = LoginDialog(product)
-    assert login.address.text()
+    assert login.server_url.startswith(("https://", "http://"))
     login.reject()
     window = MainWindow()
     updates = UpdateController(window, SimpleNamespace(
