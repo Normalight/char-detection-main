@@ -89,22 +89,3 @@ def test_tag_lookup_reuses_unpublished_draft(monkeypatch):
     monkeypatch.setattr(client,'api',api)
     assert client.release('char-detection-main-v1.2.0')['id']==42
     assert len(calls)==2
-
-
-def test_native_installers_are_tied_to_update_archives(tmp_path):
-    source = tmp_path / 'input'
-    make_packages(source)
-    for target in module.TARGETS:
-        installer = source / (f'tool-v1.2.0-{target}' + ('.dmg' if target.startswith('macos-') else '-Setup.exe'))
-        installer.write_bytes(b'installer')
-        installer.with_suffix(installer.suffix + '.json').write_text(json.dumps(dict(
-            product='char-detection-main', version='v1.2.0', target=target, name=installer.name,
-            size=installer.stat().st_size, sha256=module.digest(installer),
-            update_sha256=module.digest(source / f'-v1.2.0-{target}.zip'))))
-    manifest = module.stage_assets(source, tmp_path / 'stage', 'char-detection-main', 'v1.2.0', 'a' * 40)
-    assert len(manifest['assets']) == 6
-    assert sum(a.get('kind') == 'installer' for a in manifest['assets']) == 3
-    installer.write_bytes(b'tampered')
-    with pytest.raises(module.PublishError, match='attestation'):
-        module.stage_assets(source, tmp_path / 'bad', 'char-detection-main', 'v1.2.0', 'a' * 40)
-    assert not (tmp_path / 'bad').exists()

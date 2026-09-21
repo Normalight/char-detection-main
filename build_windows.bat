@@ -62,7 +62,7 @@ if not exist "dist\interactive_annotator\interactive_annotator.exe" (
     exit /b 1
 )
 
-call conda run --no-capture-output -n "%CONDA_ENV%" python packaging/package_windows.py
-if errorlevel 1 exit /b 1
-echo [OK] Installer and update archive created in dist.
+echo.
+echo [OK] Created: %CD%\dist\interactive_annotator\interactive_annotator.exe
+echo [INFO] Distribute the entire dist\interactive_annotator directory; do not copy only the exe.
 exit /b 0

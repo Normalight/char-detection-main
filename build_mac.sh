@@ -73,6 +73,4 @@ cp MAC使用说明.txt "$RELEASE/MAC使用说明.txt"
 ZIP="$RELEASE.zip"
 rm -f "$ZIP"
 ditto -c -k --norsrc --noextattr --noqtn "$RELEASE" "$ZIP"
-"${RUN[@]}" packaging/native_installers.py --product "char-detection-main" \
-    --version "${PACKAGE_VERSION:-v0.0.0-dev}" --target "macos-$TARGET" --bundle "$APP" --archive "$ZIP"
 echo "已生成并验证：$ZIP"

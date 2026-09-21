@@ -13,7 +13,7 @@ prefix = '归并' if repo == 'group-by-character' else '切字'
 records = []
 for asset in event['assets']:
     name = prefix + asset['name'] if asset['name'].startswith('-') else asset['name']
-    if not name.endswith(('.zip', '.dmg', '-Setup.exe')):
+    if not name.endswith('.zip'):
         continue
     ticket = publisher.api('GET', '/releases/' + tag + '/upload_url', params={'file_name': name})
     if urlsplit(ticket['url']).scheme != 'https':

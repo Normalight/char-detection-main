@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.11'
-      - name: Download existing installers and update packages
+      - name: Download existing application ZIPs
         id: source
         env:
           GH_TOKEN: ${{ github.token }}
@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           python -c 'import os,re; assert re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?", os.environ["VERSION"])'
-          gh release download "$VERSION" --pattern '*.zip' --pattern '*.dmg' --pattern '*-Setup.exe' --pattern '*.json' --dir release-assets
+          gh release download "$VERSION" --pattern '*.zip' --dir release-assets
           sha=$(gh api "repos/$GH_REPO/commits/$VERSION" --jq .sha)
           echo "commit=$sha" >> "$GITHUB_OUTPUT"
       - name: Publish verified installers

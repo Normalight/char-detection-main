@@ -57,25 +57,6 @@ def stage_assets(directory, stage, product, version, source_commit):
         selected[target] = path
     if set(selected) != TARGETS:
         raise PublishError('Wait for all three platform ZIPs')
-    installers = {}
-    for path in Path(directory).iterdir():
-        if path.suffix not in {'.dmg', '.exe'}:
-            continue
-        target = next((t for t in TARGETS if path.name.endswith(
-            f'-{version}-{t}' + ('.dmg' if t.startswith('macos-') else '-Setup.exe'))), None)
-        if not target or target in installers or path.is_symlink() or not path.is_file():
-            raise PublishError('Unexpected or duplicate native installer')
-        metadata = path.with_suffix(path.suffix + '.json')
-        if not metadata.is_file() or metadata.stat().st_size > 4096:
-            raise PublishError('Missing installer attestation')
-        record = json.loads(metadata.read_text(encoding='utf-8'))
-        if (record.get('product'), record.get('version'), record.get('target'), record.get('name'),
-            record.get('size'), record.get('sha256'), record.get('update_sha256')) != (
-                product, version, target, path.name, path.stat().st_size, digest(path), digest(selected[target])):
-            raise PublishError('Installer attestation does not match the release')
-        installers[target] = path
-    if installers and set(installers) != TARGETS:
-        raise PublishError('Wait for all three native installers')
     stage = Path(stage)
     stage.mkdir(parents=True, exist_ok=True)
     assets = []
@@ -84,12 +65,6 @@ def stage_assets(directory, stage, product, version, source_commit):
         shutil.copyfile(source, destination)
         assets.append(dict(name=destination.name, target=target, size=destination.stat().st_size,
                            sha256=digest(destination)))
-    for target, source in sorted(installers.items()):
-        suffix = '.dmg' if target.startswith('macos-') else '-Setup.exe'
-        destination = stage / f'{product}-{version}-{target}{suffix}'
-        shutil.copyfile(source, destination)
-        assets.append(dict(name=destination.name, target=target, size=destination.stat().st_size,
-                           sha256=digest(destination), kind='installer'))
     manifest = dict(schema=1, product=product, version=version, source_commit=source_commit, assets=assets)
     (stage/'release-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
     (stage/'SHA256SUMS.txt').write_text(''.join(a['sha256']+'  '+a['name']+'\n' for a in assets), encoding='utf-8')
@@ -145,14 +120,8 @@ def publish(client, stage, manifest):
     release = client.release(tag)
     if release is None:
         notes = Path(stage) / 'public-notes.md'
-        text = f"{PRODUCTS[product]} {version}\n\n"
-        labels = {'windows-x64': 'Windows 安装向导', 'macos-arm64': 'Mac Apple 芯片', 'macos-x86_64': 'Mac Intel 芯片'}
-        for asset in manifest['assets']:
-            if asset.get('kind') == 'installer':
-                text += f"- [{labels[asset['target']]}](https://github.com/{PUBLIC_REPO}/releases/download/{tag}/{asset['name']})\n"
-        text += '\nMac：打开 DMG，将软件拖入“应用程序”。Windows：运行 Setup.exe，按向导安装。\n'
-        text += '\n下载后可通过 SHA256SUMS.txt 校验文件。\n'
-        notes.write_text(text, encoding='utf-8')
+        notes.write_text(f"{PRODUCTS[product]} {version}\n\n提供 Windows x64、macOS Apple Silicon 和 macOS Intel 安装包。\n\n"
+                         '下载后可通过 SHA256SUMS.txt 校验文件。\n', encoding='utf-8')
         try:
             client.call('release', 'create', tag, '--repo', PUBLIC_REPO, '--draft',
                         '--target', repo['default_branch'], '--title', PRODUCTS[product]+' '+version,

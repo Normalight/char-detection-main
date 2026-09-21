@@ -52,27 +52,10 @@ def stage_archive(dist, project, version, target):
     if target.startswith("macos-"):
         validate_mac_archive(source, project)
     destination = dist / "release" / (stem + ".zip")
-    suffix = '.dmg' if target.startswith('macos-') else '-Setup.exe'
-    installer = dist / (stem + suffix)
-    metadata = installer.with_suffix(installer.suffix + '.json')
-    if not installer.is_file() or not metadata.is_file():
-        raise ValueError('Native installer and build attestation are required')
-    import hashlib, json
-    record = json.loads(metadata.read_text(encoding='utf-8'))
-    with source.open('rb') as stream:
-        checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
-    with installer.open('rb') as stream:
-        installer_checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
-    if (record.get('product'), record.get('version'), record.get('target'),
-        record.get('name'), record.get('size'), record.get('sha256'), record.get('update_sha256')) != (
-            project, version, target, installer.name, installer.stat().st_size, installer_checksum, checksum):
-        raise ValueError('Installer attestation does not match build')
     destination.parent.mkdir(parents=True, exist_ok=True)
     source.replace(destination)
-    source.with_suffix('.zip.sha256').unlink(missing_ok=True)
-    destination.with_suffix('.zip.sha256').unlink(missing_ok=True)
-    installer.replace(destination.parent / installer.name)
-    metadata.replace(destination.parent / metadata.name)
+    source.with_suffix(".zip.sha256").unlink(missing_ok=True)
+    destination.with_suffix(".zip.sha256").unlink(missing_ok=True)
     return destination
 
 
