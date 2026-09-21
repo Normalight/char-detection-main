@@ -95,6 +95,7 @@ class Publisher:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--preflight', action='store_true')
+    parser.add_argument('--event', type=Path, help='Saved release event for standalone synchronization')
     parser.add_argument('--assets', type=Path, default=Path('release-assets'))
     args = parser.parse_args()
     owner, repo, token = (os.environ.get(key, '') for key in
@@ -106,7 +107,7 @@ def main():
     if args.preflight:
         print('GitCode repository access verified:', owner + '/' + repo)
         return
-    event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
+    event = json.loads((args.event or Path(os.environ['GITHUB_EVENT_PATH'])).read_text())
     release = event['release']
     tag = release['tag_name']
     files = sorted(args.assets.rglob('*.zip'))
