@@ -56,7 +56,7 @@ def test_standalone_sync_reads_explicit_release_event(monkeypatch, tmp_path):
     event.write_text(json.dumps({'release': {'tag_name': 'v1.0.0', 'name': '1.0.0', 'body': 'notes'}}))
     files = []
     for target in ('windows-x64', 'macos-arm64', 'macos-x86_64'):
-        f = tmp_path / ('app-v1.0.0-' + target + '.zip')
+        f = tmp_path / ('工具-v1.0.0-' + target + '.zip')
         f.write_bytes(b'test')
         files.append(f)
     client = Mock()
@@ -73,7 +73,9 @@ def test_standalone_sync_reads_explicit_release_event(monkeypatch, tmp_path):
     m.main()
     client.ensure_release.assert_called_once_with('v1.0.0', '1.0.0', 'notes')
     assert client.upload.call_count == 3
-    assert len(json.loads((tmp_path / 'gitcode-release.json').read_text())) == 3
+    records = json.loads((tmp_path / 'gitcode-release.json').read_text())
+    assert len(records) == 3
+    assert all(record['url'].isascii() for record in records)
 
 
 def test_upload_reader_preserves_content_length(tmp_path):

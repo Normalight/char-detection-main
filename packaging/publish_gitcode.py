@@ -158,7 +158,7 @@ def main():
         with file.open('rb') as stream:
             digest = hashlib.file_digest(stream, 'sha256').hexdigest()
         # Stable public API link, no signed upload URL or credential in output.
-        url = assets[file.name]['browser_download_url']
+        url = quote(assets[file.name]['browser_download_url'], safe=':/?&=%+@')
         host = urlsplit(url).hostname or ''
         if urlsplit(url).scheme != 'https' or not (host == 'gitcode.com' or host.endswith('.gitcode.com')):
             raise RuntimeError('GitCode returned an unexpected public download host')
