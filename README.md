@@ -242,7 +242,7 @@ Mac ZIP 根目录只有 `中文字符标注工具.app` 与 `MAC使用说明.txt`
 
 账号后台提供登录日志，记录时间、账号、软件、来源 IP、结果和客户端版本，支持筛选与翻页。密码和会话令牌不会进入日志。
 
-软件登录后自动检查一次更新，也可点击工具栏“检查更新”或“帮助 → 检查更新”。客户端直接查询 GitCode 的 `qq_28599947/hanzi-soft` 中带 `char-detection-main-` 前缀的最新发行版，匹配当前平台，并读取 `hanzi-update.json` 中的大小和 SHA-256。校验后将新版本安装到独立目录，保留旧版本和当前工作。早期发行版没有清单时提供“前往下载”，下载后手动安装。
+软件登录后自动检查一次更新，也可点击工具栏“检查更新”或“帮助 → 检查更新”。客户端直接查询 GitCode 的 `qq_28599947/hanzi-soft` 中带 `char-detection-main-` 前缀的最新发行版，匹配当前平台，并读取 `hanzi-update.json` 中的大小和 SHA-256。下载并校验后自动准备更新；点击“保存并重启更新”，按现有提示保存工作，实际退出后在原位置替换并重启，旧版本保留在相邻的 `.previous-*` 目录。Windows 更新保留安装目录中未被新版覆盖的用户文件（运行库 `_internal` 使用新版）。原目录不可写时提示迁移到个人可写目录；源码运行或 macOS 临时隔离位置回退为独立目录，直接打开新版。早期发行版没有清单时提供“前往下载”，下载后手动安装。
 
 发布时必须设置 `PACKAGE_VERSION`，构建会生成 `build_info.json`。可用 `python packaging/release_info.py <安装包.zip> --product char-detection-main --target windows-x64 --version v1.0.0` 计算大小和校验值；Mac 的 target 为 `macos-arm64` 或 `macos-x86_64`。GitCode 仓库创建、标签及附件发布步骤见工作区 `hanzi-auth/README.md` 的“GitCode 发布与软件更新”。
 
