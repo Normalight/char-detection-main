@@ -1602,6 +1602,8 @@ class AnnotatorCore:
         启动条件：模型就绪、非退出流程、无保存任务、当前页 OCR 不在跑
         （当前页永远优先）、没有已在跑的预取。候选顺序从当前页向后绕环。
         """
+        if getattr(getattr(self.main_window, '_auth_guard', None), 'locked', False):
+            return
         if self.ocr_handler is None or not self.items:
             return
         if self._load_worker is not None or self._navigation_target is not None:

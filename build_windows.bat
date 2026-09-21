@@ -38,6 +38,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
+call conda run --no-capture-output -n "%CONDA_ENV%" python -m pip install -r packaging/requirements-windows.txt
+if errorlevel 1 exit /b 1
+
 echo [INFO] Building interactive_annotator onedir distribution ...
 if exist "dist\interactive_annotator.exe" (
     echo [INFO] Removing obsolete one-file executable ...

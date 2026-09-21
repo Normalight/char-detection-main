@@ -227,3 +227,27 @@ CI 使用 Python 3.11 和固定版本依赖；模型由 `packaging/download_mode
 
 Mac ZIP 根目录只有 `中文字符标注工具.app` 与 `MAC使用说明.txt`，解压后直接打开应用；不包含外层目录、启动脚本或依赖清单。
 本地构建通过 `PACKAGE_VERSION=v1.0.0` 指定包名版本，未指定时为 `v0.0.0-dev`。
+
+
+## 账号登录与保护打包
+
+启动时需要登录统一账号服务，默认 `http://127.0.0.1:8765`，也可在登录窗口填写服务器 IP + 端口。管理员可在该地址的网页后台分配软件权限、停用账号、设置有效期或重置密码。客户端每 60 秒检查授权，断网缓冲 5 分钟；锁定后保留保存当前成果的入口。
+
+在本项目根目录安装 `requirements.txt` 即可安装 `vendor/` 中的共用认证包。认证包与服务端源码位于工作区相邻的 `hanzi-auth/`，完整本机部署说明见该目录的 README.md；此软件仓库的构建本身不依赖相邻目录。
+
+平台打包使用免费开源的 Cython，将主体 Python 模块及账号模块编译成原生扩展（Windows `.pyd`、Mac `.so`），由 PyInstaller 打包。无需付费混淆许可证。构建默认开启保护，生成 `build/code-protection/manifest.json`；编译失败会中止。Windows 构建需安装 Visual Studio C++ Build Tools（MSVC 与 Windows SDK），Mac 需 Xcode Command Line Tools。各架构分别编译。仅开发调试可显式设置 `HANZI_PROTECT=0`。交付包不包含主体 Python 源码或其字节码；保留最小多进程启动入口。编译保护提高逆向成本，不包含 ONNX 模型加密；生成的 C 文件和源码暂存仅保留在 build 中，不应随发布包分发。
+
+
+## 登录日志和 GitCode 更新
+
+账号后台提供登录日志，记录时间、账号、软件、来源 IP、结果和客户端版本，支持筛选与翻页。密码和会话令牌不会进入日志。
+
+软件登录后自动检查一次更新，也可选择“帮助 → 检查更新”。管理员在账号后台按软件、平台填写公开 GitCode 发行版附件链接、版本、大小和 SHA-256。客户端完成下载校验后将新版本安装到独立目录，保留旧版本和当前工作，再由用户打开新版本。
+
+发布时必须设置 `PACKAGE_VERSION`，构建会生成 `build_info.json`。可用 `python packaging/release_info.py <安装包.zip> --product char-detection-main --target windows-x64 --version v1.0.0` 计算大小和校验值；Mac 的 target 为 `macos-arm64` 或 `macos-x86_64`。GitCode 仓库创建、标签及附件发布步骤见工作区 `hanzi-auth/README.md` 的“GitCode 发布与软件更新”。
+
+### GitCode 发行版同步
+
+发布 GitHub `vMAJOR.MINOR.PATCH` Release 后，Actions 构建三个平台安装包，上传 GitHub，再复用同一批 Artifact 上传 GitCode。需要仓库变量 `GITCODE_OWNER`、`GITCODE_REPO` 和 Secret `GITCODE_TOKEN`。同步可重跑，已存在的同名附件保留；替换已发布内容应使用新版本号。
+
+同步结果 `gitcode-release-metadata` Artifact 包含三个附件的公开下载链接、文件大小和 SHA-256，可填写到认证后台。GitCode 仓库需允许用户公开下载；凭据仅用于 CI 发布，不放入客户端。

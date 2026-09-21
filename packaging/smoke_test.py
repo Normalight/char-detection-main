@@ -10,9 +10,24 @@ def smoke_test():
     assert getattr(sys, "frozen", False), "Run smoke tests from the packaged application"
     from PySide6.QtWidgets import QApplication
     from app import MainWindow
+    from hanzi_auth import require_login, protect_window
+    assert callable(require_login) and callable(protect_window)
     from PIL import Image
     app = QApplication.instance() or QApplication([])
+    from hanzi_auth.desktop import LoginDialog
+    from hanzi_auth.updates import build_info
+    from hanzi_auth.update_ui import UpdateController
+    from types import SimpleNamespace
+    product = 'char-detection-main'
+    assert build_info(product)["product"] == product
+    login = LoginDialog(product)
+    assert login.address.text()
+    login.reject()
     window = MainWindow()
+    updates = UpdateController(window, SimpleNamespace(
+        locked=True, session=SimpleNamespace(product=product)))
+    updates.startup_timer.stop()
+    assert updates.action.text() == "检查更新…"
     window.show()
     app.processEvents()
     window.hide()
@@ -39,4 +54,4 @@ def smoke_test():
         executor.submit(check_io_and_ocr).result(timeout=120)
     window.close()
     print(json.dumps({'smoke_test':'passed', 'arch':platform.machine(),
-                      'checks':['Qt window','bundled OCR models','PDF rendering','Excel']}, ensure_ascii=False))
+                      'checks':['login and update UI','Qt window','bundled OCR models','PDF rendering','Excel']}, ensure_ascii=False))

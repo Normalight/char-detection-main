@@ -530,6 +530,8 @@ class MainWindow(QMainWindow):
             self.out_edit.setText(p)
 
     def _start(self):
+        if getattr(getattr(self, '_auth_guard', None), 'locked', False):
+            return
         if self.core._quit_state != self.core.QUIT_IDLE:
             return
         input_dir = self.in_edit.text().strip() or self.core.input_dir
@@ -588,7 +590,15 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     # PySide6 6.5+ 默认启用高 DPI 缩放，无需手动 setHighDpiScaleFactorRoundingPolicy。
+    from hanzi_auth import require_login, protect_window
+    session = require_login('char-detection-main')
+    if session is None:
+        return 0
     w = MainWindow()
+    def lock_session():
+        w.canvas.releaseKeyboard()
+        w.core._cancel_background_prefetch()
+    protect_window(w, session, w.core.save_current, lock_session)
     w.showMaximized()
     sys.exit(app.exec())
 

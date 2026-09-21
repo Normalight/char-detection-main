@@ -44,9 +44,15 @@ try:
 except Exception:
     pass
 
+import runpy
+from pathlib import Path
+protection = runpy.run_path(str(Path(project_dir) / 'packaging/protection.py'))
+code_root = protection['prepare'](project_dir)
+datas.append(protection['build_info'](project_dir))
+
 a = Analysis(
-    ['packaging/entry.py'],             # 工程入口
-    pathex=[project_dir, os.path.join(project_dir, 'packaging')],
+    [str(code_root / 'packaging/entry.py')],             # 工程入口
+    pathex=[str(code_root), str(code_root / 'packaging')],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
@@ -78,6 +84,7 @@ a.binaries = [
     if not _is_incompatible_root_icu(entry)
 ]
 
+protection['apply'](a, code_root)
 pyz = PYZ(a.pure)
 
 # 生成 onedir 可执行。依赖文件由 COLLECT 放进同名目录，启动时无需先把

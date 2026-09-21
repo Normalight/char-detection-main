@@ -25,10 +25,15 @@ for model in models:
         if not source.is_file():
             raise FileNotFoundError(f'缺少模型资源：{source}')
         datas.append((str(source), str(source.parent.relative_to(root))))
-a = Analysis([str(root / 'packaging/entry.py')],
-    pathex=[str(root), str(root / 'packaging')], datas=datas, binaries=[],
+import runpy
+protection = runpy.run_path(str(root / 'packaging/protection.py'))
+code_root = protection['prepare'](root)
+datas.append(protection['build_info'](root))
+a = Analysis([str(code_root / 'packaging/entry.py')],
+    pathex=[str(code_root), str(code_root / 'packaging')], datas=datas, binaries=[],
     hiddenimports=[], hookspath=[], runtime_hooks=[],
     excludes=['PyQt5', 'PyQt6', 'PySide2', 'tkinter', 'pytest'], noarchive=False)
+protection['apply'](a, code_root)
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='runtime',
     console=False, strip=False, upx=False, target_arch=os.environ['MAC_ARCH'],
