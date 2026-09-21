@@ -20,6 +20,15 @@ def smoke_test():
     from types import SimpleNamespace
     product = 'char-detection-main'
     assert build_info(product)["product"] == product
+    from hanzi_auth.single_instance import SingleInstance
+    with tempfile.TemporaryDirectory(prefix='single-instance-smoke-') as lock_dir:
+        owner = SingleInstance(product, lock_dir)
+        duplicate = SingleInstance(product, lock_dir)
+        assert owner.acquire()
+        assert not duplicate.acquire()
+        owner.close()
+        assert duplicate.acquire()
+        duplicate.close()
     login = LoginDialog(product)
     assert login.server_url.startswith(("https://", "http://"))
     login.reject()

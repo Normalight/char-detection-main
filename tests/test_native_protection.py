@@ -21,6 +21,7 @@ def protection(tmp_path, monkeypatch):
                            ('hanzi_auth.desktop', 'hanzi_auth/desktop.py'),
                            ('hanzi_auth.policy', 'hanzi_auth/policy.py'),
                            ('hanzi_auth.channel', 'hanzi_auth/channel.py'),
+                           ('hanzi_auth.single_instance', 'hanzi_auth/single_instance.py'),
                            ('hanzi_auth.updates', 'hanzi_auth/updates.py'),
                            ('hanzi_auth.update_ui', 'hanzi_auth/update_ui.py')]:
         file = source / relative

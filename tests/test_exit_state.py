@@ -35,6 +35,18 @@ def _core_with_unsaved_item():
 
 
 class ExitChoiceTests(unittest.TestCase):
+    def test_update_exit_saves_without_discard_prompt(self):
+        core = _core_with_unsaved_item()
+        core._msg_save_discard_cancel = mock.MagicMock(return_value="discard")
+        core.save_all = mock.MagicMock(return_value=True)
+        core._begin_worker_shutdown = mock.MagicMock()
+        self.assertTrue(core.quit_app(save_before_exit=True))
+        core._msg_save_discard_cancel.assert_not_called()
+        core.save_all.assert_called_once_with()
+        core._begin_worker_shutdown.assert_not_called()
+        self.assertEqual(core._quit_state, core.QUIT_SAVING)
+
+
     def test_cancel_keeps_window_open(self):
         core = _core_with_unsaved_item()
         core._msg_save_discard_cancel = mock.MagicMock(
@@ -217,6 +229,8 @@ class ExitWorkerLifecycleTests(unittest.TestCase):
         core = _core_with_unsaved_item()
         worker = mock.MagicMock()
         worker._core_save_outcome = "error"
+        core.main_window = mock.MagicMock()
+        core.main_window._update_controller.restart_requested = True
         core._save_worker = worker
         core._quit_state = core.QUIT_SAVING
         core._pending_quit = True
@@ -228,6 +242,7 @@ class ExitWorkerLifecycleTests(unittest.TestCase):
         self.assertEqual(core._quit_state, core.QUIT_IDLE)
         self.assertFalse(core._pending_quit)
         self.assertFalse(core._quit_interaction_locked)
+        self.assertFalse(core.main_window._update_controller.restart_requested)
         core.on_quit_interaction_lock_changed.assert_called_once_with(False)
 
     def test_close_event_contains_no_timed_force_wait(self):
@@ -238,7 +253,7 @@ class ExitWorkerLifecycleTests(unittest.TestCase):
             "def _any_worker_running",
             1,
         )[0]
-        self.assertIn("self.core.quit_app()", close_source)
+        self.assertIn("self.core.quit_app(save_before_exit=", close_source)
         self.assertNotIn(".wait(", close_source)
 
     def test_main_window_disables_central_widget_during_exit(self):

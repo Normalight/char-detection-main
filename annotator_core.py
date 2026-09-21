@@ -907,6 +907,7 @@ class AnnotatorCore:
             and self._quit_state == self.QUIT_SAVING
         )
         if outcome != "success" and self._quit_state == self.QUIT_SAVING:
+            self._cancel_update_restart()
             self._restart_callback = None
             self._quit_state = self.QUIT_IDLE
             self._pending_quit = False
@@ -934,6 +935,7 @@ class AnnotatorCore:
                 self._pending_quit = False
                 self._set_quit_interaction_locked(False)
                 self._restart_callback = None
+                self._cancel_update_restart()
                 self.set_status("无法保存最新编辑，已取消后续操作")
                 return
             self._begin_worker_shutdown()
@@ -1027,7 +1029,12 @@ class AnnotatorCore:
         self._refresh_canvas()
         callback()
 
-    def quit_app(self):
+    def _cancel_update_restart(self):
+        updater = getattr(getattr(self, 'main_window', None), '_update_controller', None)
+        if updater is not None:
+            updater.restart_requested = False
+
+    def quit_app(self, save_before_exit=False):
         """统一处理所有退出入口，并在任务结束后真正关闭窗口。"""
         if self._quit_state != self.QUIT_IDLE:
             self.set_status("退出请求正在处理中...")
@@ -1043,7 +1050,7 @@ class AnnotatorCore:
 
         restarting = self._restart_callback is not None
         action = "重新开始" if restarting else "退出"
-        choice = self._msg_save_discard_cancel(
+        choice = 'save' if save_before_exit else self._msg_save_discard_cancel(
             action + "确认",
             f"当前会话存在未保存内容。请选择{action}方式：",
             save_label="保存并" + action,

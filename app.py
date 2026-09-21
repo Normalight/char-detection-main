@@ -584,7 +584,11 @@ class MainWindow(QMainWindow):
             event.accept()
             return
         event.ignore()
-        self.core.quit_app()
+        if self.core._quit_state != self.core.QUIT_IDLE:
+            return
+        updater = getattr(self, '_update_controller', None)
+        if not self.core.quit_app(save_before_exit=bool(updater and updater.restart_requested)) and updater:
+            updater.restart_requested = False
 
     def _any_worker_running(self):
         return self.core.any_worker_running()
@@ -592,12 +596,17 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    from hanzi_auth.single_instance import acquire_instance
+    instance = acquire_instance(app, 'char-detection-main')
+    if instance is None:
+        return 0
     # PySide6 6.5+ 默认启用高 DPI 缩放，无需手动 setHighDpiScaleFactorRoundingPolicy。
     from hanzi_auth import require_login, protect_window
     session = require_login('char-detection-main')
     if session is None:
         return 0
     w = MainWindow()
+    instance.window = w
     def lock_session():
         w.canvas.releaseKeyboard()
         w.core._cancel_background_prefetch()
