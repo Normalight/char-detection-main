@@ -71,13 +71,13 @@ from setuptools import setup, Extension
 from Cython.Build import cythonize
 base = Path(__file__).resolve().parent
 modules = json.loads((base / "modules.json").read_text(encoding="utf-8"))
-extensions = [Extension(m["name"], [m["source"]]) for m in modules]
+extensions = [Extension(m["name"], [str(Path("source") / m["relative"])]) for m in modules]
 setup(name="hanzi-native-modules", ext_modules=cythonize(
-    extensions, build_dir=str(base / "generated"),
+    extensions, build_dir="generated",
     compiler_directives={"language_level": 3, "annotation_typing": False,
                          "binding": True, "embedsignature": False},
-), script_args=["build_ext", "--build-lib", str(base / "native"),
-                "--build-temp", str(base / "objects")])
+), script_args=["build_ext", "--build-lib", "native",
+                "--build-temp", "objects"])
 ''', encoding='utf-8')
     try:
         subprocess.run([sys.executable, str(builder)], cwd=base, check=True)
