@@ -1,0 +1,40 @@
+name: Publish existing installers to public repository
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing private Release version (for example v1.0.0)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: public-installers-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - name: Download existing application ZIPs
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          python -c 'import os,re; assert re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?", os.environ["VERSION"])'
+          gh release download "$VERSION" --pattern '*.zip' --dir release-assets
+          sha=$(gh api "repos/$GH_REPO/commits/$VERSION" --jq .sha)
+          echo "commit=$sha" >> "$GITHUB_OUTPUT"
+      - name: Publish verified installers
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+        run: python packaging/publish_public.py --product char-detection-main --version "$VERSION" --source-commit "$SOURCE_COMMIT"
