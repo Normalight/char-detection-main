@@ -31,7 +31,7 @@ code_root = protection['prepare'](root)
 datas.append(protection['build_info'](root))
 a = Analysis([str(code_root / 'packaging/entry.py')],
     pathex=[str(code_root), str(code_root / 'packaging')], datas=datas, binaries=[],
-    hiddenimports=[], hookspath=[], runtime_hooks=[],
+    hiddenimports=['_cffi_backend'], hookspath=[], runtime_hooks=[],
     excludes=['PyQt5', 'PyQt6', 'PySide2', 'tkinter', 'pytest'], noarchive=False)
 protection['apply'](a, code_root)
 pyz = PYZ(a.pure)

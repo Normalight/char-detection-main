@@ -32,7 +32,7 @@ for model_file in selected_models:
 # 可能的隐式依赖：存在就收集，不存在就跳过。PySide6/shiboken6 由
 # PyInstaller 的 Qt hooks 按实际 import 收集；不要 collect_submodules，
 # 否则会把 WebEngine/3D/SQL 等未使用模块全部打进发布目录。
-hiddenimports = []
+hiddenimports = ['_cffi_backend']
 for pkg in ('fitz', 'pdf2image', 'xlsxwriter', 'yaml'):
     try:
         hiddenimports += collect_submodules(pkg)
