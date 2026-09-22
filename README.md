@@ -261,3 +261,7 @@ models/                            本机模型资源
 Python 模块使用小写下划线命名，以职责区分；现有命令入口、产品标识、模型路径、JSON/Excel 格式保持兼容。运行安装使用 `requirements.txt`，开发测试使用 `requirements-dev.txt`。平台固定依赖统一在 `packaging/requirements-build.txt`；Mac/Windows 文件只保留包含关系与平台差异。
 
 公共打包脚本维护源为相邻 `hanzi-auth/tools/desktop_packaging/`，通过该项目 `tools/sync_desktop.py` 构建 wheel 并同步。`python tools/sync_desktop.py --check` 只读检查副本和当前 wheel 引用。客户端始终使用本仓库副本，可独立运行与构建。
+
+### 本地保存性能
+
+保存当前页时会复用未变化的切片和 Excel 缩略图；页面内容与导出参数不变时跳过 Excel 重建。缩略图采用快速无损 PNG 压缩，可能略增文件体积，原始切片清晰度不变。输出目录中的隐藏缓存和 `crops.xlsx.cache.json` 可删除，之后会自动重建。后台 OCR 取消后，保存线程等待其退出，界面仍可响应。

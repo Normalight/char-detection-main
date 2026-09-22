@@ -45,7 +45,7 @@ Python 推荐 3.11，界面使用 PySide6 / QPainter，推理使用 onnxruntime�
 - 页面流程：`ModelLoadWorker` → `_load_item` 启动 `PageLoadWorker` → `_apply_loaded_item` → 按需启动 `OcrPrefetchWorker`。加载成功前不提前改写当前页索引。
 - 空闲时 `OcrBatchPrefetchWorker` 预取未访问且无 JSON 的页面；前台 OCR 与批量保存可取消预取。结果按请求号、页面标识、编辑版本和会话代数校验，不能覆盖后续编辑或另一会话。
 - 重新开始时保留退役推理线程的引用直到其结束，丢弃过期结果；关闭窗口仍检查所有线程，保存任务需安全收尾。
-- `save_current` 启动 `SaveCurrentWorker`，逐张原图裁剪并暂存，保留整页事务回滚。保存成功且编辑版本未变化才继续目标页导航，失败或取消留在当前页。
+- `save_current` 启动 `SaveCurrentWorker`，按原图像素摘要、框和文件状态复用未变化切片，只暂存变化项，保留整页事务回滚。保存成功且编辑版本未变化才继续目标页导航，失败或取消留在当前页。
 - 翻页前对编辑过或存在未落盘框的页面处理保存询问。保存期间继续编辑要保留新版本并取消自动翻页。
 - `save_all` 只启动 `SaveAllWorker` 并立即返回；退出由 `quit_app`、`_pending_quit` 和保存结束回调协调。
 - 未访问页批量保存优先内存 boxes，再读 JSON，最后才回退 OCR。重存时清理对应旧切片，防止删框后残留污染结果。
@@ -105,3 +105,9 @@ Mac arm64 的 `packaging/mac.spec` 通过 `minimal_opencv.py` 构建固定版本
 Python 文件使用 `snake_case.py`，按职责命名；外部入口、软件标识、模型目录和导出格式保持稳定。开发测试依赖放在 `requirements-dev.txt`，平台共同构建依赖放在 `packaging/requirements-build.txt`，平台文件只写包含与差异。`packaging/` 中的公共脚本从认证项目 `tools/desktop_packaging/` 同步，不在副本上独立修改。在认证项目运行 `python tools/sync_desktop.py --check` 检查漂移。源码地图见 README。
 
 源码按职责收敛到包，根目录仅保留启动入口和配置。公共工具位于 `utils/`（如适用），业务包不使用模型历史名称。打包保护自动发现根目录下含 `__init__.py` 的源码包，并要求实际 `ui/window.py` 进入保护清单。测试和打包自检直接引用对应包。
+
+## 保存性能
+
+- `utils/save_cache.py` 管理可丢弃的保存缓存。缺失缓存时重建；原图变化、框变化或输出文件变化使相应缓存失效。
+- Excel 缩略图使用快速 PNG 无损编码，按页面持久化复用；输入和布局参数不变时保留已有 Excel。Excel 通过临时文件成功替换，失败保留旧文件。
+- 保存线程等待已取消的 OCR 线程退出后再计算，等待不阻塞 GUI，仍可取消。新增行为回归见 `tests/test_incremental_save.py`。

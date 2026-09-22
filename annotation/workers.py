@@ -14,6 +14,7 @@
 import copy
 import logging
 import traceback
+import time
 from typing import Any, Callable, List, Optional
 
 import cv2
@@ -43,6 +44,20 @@ class _BaseWorker(QThread):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._cancelled = False
+
+    def _wait_for_save_dependencies(self):
+        # Wait in the saving thread, never in the GUI event loop.
+        for worker in getattr(self, 'save_dependencies', ()):
+            while not self.is_cancelled:
+                try:
+                    if worker.wait(50):
+                        break
+                except RuntimeError:  # finished Qt object already released
+                    break
+            if self.is_cancelled:
+                return False
+        self.save_dependencies = ()
+        return not self.is_cancelled
 
     def cancel(self):
         """请求取消。Worker 在下一个检查点退出。"""
@@ -141,10 +156,11 @@ class SaveCurrentWorker(_BaseWorker):
         self._single_page = True
 
     def run(self):
-        if self.is_cancelled:
+        if not self._wait_for_save_dependencies():
             self.stopped.emit('已取消保存当前页')
             return
         try:
+            started = time.perf_counter()
             thumbnails = {}
             def remember_thumbnail(index, crop, box):
                 thumbnails[index] = make_crop_thumbnail(crop, box)
@@ -154,8 +170,11 @@ class SaveCurrentWorker(_BaseWorker):
                 crop_callback=remember_thumbnail)
             if count < 0:
                 raise RuntimeError('原图为空，无法保存')
+            slices_done = time.perf_counter()
             self.progress.emit(0,1,'正在生成 Excel')
             build_excel_for_single_item(self._output_dir, self._item, cached_thumbnails=thumbnails)
+            logger.info("当前页保存耗时：切片/JSON %.3fs，Excel %.3fs",
+                        slices_done - started, time.perf_counter() - slices_done)
             self._item.update(ever_saved=True, dirty=False, nav_scale=1.0)
             self.page_saved.emit(copy.deepcopy(self._item))
             if self.is_cancelled:
@@ -307,6 +326,9 @@ class SaveAllWorker(_BaseWorker):
         self._image_scale = image_scale
 
     def run(self):
+        if not self._wait_for_save_dependencies():
+            self.stopped.emit('批量保存已取消')
+            return
         total = len(self._items)
         saved = 0
         for i, it in enumerate(self._items):

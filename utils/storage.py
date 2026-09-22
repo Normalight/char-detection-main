@@ -18,6 +18,7 @@ utils/storage.py
 from utils.paths import get_output_dir_for_item, get_json_candidates as _legacy_json_candidates
 
 import glob
+import hashlib
 import json
 import logging
 import os
@@ -216,6 +217,12 @@ def save_item_json(
         "preserve_crop_orientation": True,
         "note": "boxes are stored in the real processing image coordinate system, not the display/view scale",
     }
+    try:
+        with open(jp, encoding="utf-8") as existing:
+            if json.load(existing) == data:
+                return jp
+    except (OSError, ValueError):
+        pass
     temp_json_path = os.path.join(
         folder,
         f".{os.path.basename(jp)}.tmp-{uuid.uuid4().hex}",
@@ -593,6 +600,16 @@ def save_current_slices_and_json(output_root_dir: str, item: dict, base_image_bg
     os.makedirs(out_dir, exist_ok=True)
 
     valid_boxes = normalize_boxes(boxes)
+    from utils.save_cache import read_cache, write_cache, file_stamp
+    cache_path = os.path.join(out_dir, '.slice-cache.json')
+    previous = read_cache(cache_path)
+    image_key = hashlib.sha256(memoryview(np.ascontiguousarray(base_image_bgr))).hexdigest()
+    image_key += str((base_image_bgr.shape, str(base_image_bgr.dtype)))
+    old_entries = previous.get('entries', {}) if previous.get('image') == image_key else {}
+    if not isinstance(old_entries, dict):
+        old_entries = {}
+    entries = {}
+    reused = set()
     transaction_id = uuid.uuid4().hex
     staged_paths = []
     final_paths = []
@@ -605,13 +622,22 @@ def save_current_slices_and_json(output_root_dir: str, item: dict, base_image_bg
         # Keep only one full-resolution crop in memory at a time. All staged
         # files still precede the transaction commit, preserving rollback.
         for i, box in enumerate(valid_boxes):
+            final_path = os.path.join(out_dir, _crop_filename(item, name_prefix, i))
+            box_key = box.tolist()
+            old = old_entries.get(os.path.basename(final_path), {})
+            if not isinstance(old, dict):
+                old = {}
+            stamp = file_stamp(final_path)
+            if stamp is not None and old.get('box') == box_key and old.get('stamp') == stamp:
+                reused.add(final_path)
+                entries[os.path.basename(final_path)] = old
+                if progress_callback is not None:
+                    progress_callback(i+1, len(valid_boxes))
+                continue
             crop = get_rotate_crop_image(base_image_bgr, box.copy())
             if crop is None or getattr(crop, 'size', 0) == 0:
                 raise RuntimeError(f'box {i} 透视裁剪失败：{box.tolist()}')
-            final_path = os.path.join(
-                out_dir,
-                _crop_filename(item, name_prefix, i),
-            )
+            entries[os.path.basename(final_path)] = {'box': box_key}
             staged_path = os.path.join(
                 out_dir,
                 f".crop-stage-{transaction_id}-{i}.png",
@@ -628,6 +654,8 @@ def save_current_slices_and_json(output_root_dir: str, item: dict, base_image_bg
         # 先把旧切片移到同目录备份，再原子替换新切片。后续任一步失败
         # 都可在当前进程内恢复上一版输出。
         for i, old_path in enumerate(_existing_crop_paths(out_dir)):
+            if old_path in reused:
+                continue
             backup_path = os.path.join(
                 out_dir,
                 f".crop-backup-{transaction_id}-{i}.bak",
@@ -676,8 +704,11 @@ def save_current_slices_and_json(output_root_dir: str, item: dict, base_image_bg
         except OSError as e:
             logger.warning("清理切片事务备份失败：%s，错误：%s", backup_path, e)
 
+    for name, entry in entries.items():
+        entry['stamp'] = file_stamp(os.path.join(out_dir, name))
+    write_cache(cache_path, {'image': image_key, 'entries': entries})
     saved = len(valid_boxes)
-    logger.info("操作完成：成功保存 %d / %d 个图片切片。", saved, len(valid_boxes))
+    logger.info("操作完成：保存 %d 个切片，其中复用 %d 个。", saved, len(reused))
     return saved
 
 

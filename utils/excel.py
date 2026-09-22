@@ -16,6 +16,11 @@ Excel 导出：中文横/竖排对齐、防重叠、避免扁图、缩略图控�
 from utils.paths import get_output_dir_for_item as get_item_folder_and_prefix, get_json_candidates
 
 import glob
+import functools
+import base64
+import inspect
+import hashlib
+import uuid
 import io
 import json
 import logging
@@ -403,7 +408,7 @@ def _maybe_fix_orientation(im: Image.Image, rec: Dict) -> Tuple[Image.Image, str
     return im, "none"
 
 
-def _make_thumbnail_bytes(path: str, rec: Dict, max_side_px: int,
+def _read_thumbnail_bytes(path: str, rec: Dict, max_side_px: int,
                           thumb_format: str = DEFAULT_THUMB_FORMAT,
                           jpeg_quality: int = DEFAULT_JPEG_QUALITY) -> Tuple[io.BytesIO, int, int, int, int, str, str]:
     """
@@ -416,6 +421,22 @@ def _make_thumbnail_bytes(path: str, rec: Dict, max_side_px: int,
     with Image.open(io.BytesIO(raw)) as im:
         im = ImageOps.exif_transpose(im)
         return _thumbnail_from_image(im, rec, max_side_px, thumb_format, jpeg_quality)
+
+
+@functools.lru_cache(maxsize=1024)
+def _cached_thumbnail(path, stamp, geometry, max_side, fmt, quality):
+    result = _read_thumbnail_bytes(path, dict(geometry), max_side, fmt, quality)
+    return (result[0].getvalue(), *result[1:])
+
+
+def _make_thumbnail_bytes(path, rec, max_side_px, thumb_format=DEFAULT_THUMB_FORMAT,
+                          jpeg_quality=DEFAULT_JPEG_QUALITY):
+    from utils.save_cache import file_stamp
+    geometry = tuple((key, rec.get(key)) for key in ('has_box', 'w', 'h'))
+    stamp = file_stamp(path)
+    result = _cached_thumbnail(path, tuple(stamp or []), geometry, max_side_px,
+                               thumb_format, jpeg_quality)
+    return (io.BytesIO(result[0]), *result[1:])
 
 
 def _thumbnail_from_image(im, rec, max_side_px, thumb_format, jpeg_quality):
@@ -436,12 +457,12 @@ def _thumbnail_from_image(im, rec, max_side_px, thumb_format, jpeg_quality):
             im = bg
         else:
             im = im.convert("RGB")
-        im.save(bio, format="JPEG", quality=int(jpeg_quality), optimize=True)
+        im.save(bio, format="JPEG", quality=int(jpeg_quality), optimize=False)
         ext = "jpg"
     else:
         if im.mode not in ("RGB", "RGBA", "L"):
             im = im.convert("RGB")
-        im.save(bio, format="PNG", optimize=True)
+        im.save(bio, format="PNG", optimize=False, compress_level=1)
         ext = "png"
 
     bio.seek(0)
@@ -536,7 +557,7 @@ def _build_records(output_root_dir, item) -> Tuple[List[Dict], Optional[str], st
 # 主入口：保持原调用方式兼容
 # =========================
 
-def build_excel_for_single_item(
+def _build_excel_for_single_item(
     output_root_dir,
     item,
     workbook_name="crops.xlsx",
@@ -701,3 +722,67 @@ def build_excel_for_single_item(
             wb.close()
         except Exception:
             pass
+        raise
+
+
+def build_excel_for_single_item(output_root_dir, item, *args, **kwargs):
+    from utils.save_cache import file_stamp, read_cache, write_cache
+    folder, _ = get_item_folder_and_prefix(output_root_dir, item)
+    if not HAS_XLSX or not os.path.isdir(folder):
+        return
+    records, json_path, _ = _build_records(output_root_dir, item)
+    name = args[0] if args else kwargs.get('workbook_name', 'crops.xlsx')
+    target = os.path.join(folder, name)
+    options = {k: v for k, v in kwargs.items() if k != 'cached_thumbnails'}
+    inputs = [(r['path'], file_stamp(r['path'])) for r in records]
+    signature = hashlib.sha256(repr((inputs, file_stamp(json_path), args, options,
+                                     AUTO_FIX_THUMB_ORIENTATION, ORIENTATION_FIX_RATIO)).encode()).hexdigest()
+    cache_path = target + '.cache.json'
+    cache = read_cache(cache_path)
+    if file_stamp(target) is not None and cache == {'key': signature, 'stamp': file_stamp(target)}:
+        return
+    bound = inspect.signature(_build_excel_for_single_item).bind(output_root_dir, item, *args, **kwargs)
+    bound.apply_defaults()
+    settings = bound.arguments
+    thumb_options = (settings['cell_size_px'] - 2 * settings['padding_px'],
+                     settings['thumb_format'], settings['jpeg_quality'],
+                     AUTO_FIX_THUMB_ORIENTATION, ORIENTATION_FIX_RATIO)
+    thumb_cache_path = os.path.join(folder, '.thumbnail-cache.json')
+    old_thumbs = read_cache(thumb_cache_path)
+    new_thumbs = {}
+    thumbnails = dict(kwargs.get('cached_thumbnails') or {})
+    for rec in records:
+        key = hashlib.sha256(repr((rec['path'], file_stamp(rec['path']),
+            rec.get('has_box'), rec.get('w'), rec.get('h'), thumb_options)).encode()).hexdigest()
+        index = rec['crop_index']
+        cached = old_thumbs.get(key)
+        if index not in thumbnails and isinstance(cached, list):
+            try:
+                if len(cached) != 7:
+                    raise ValueError('invalid thumbnail metadata')
+                raw = base64.b64decode(cached[0], validate=True)
+                with Image.open(io.BytesIO(raw)) as check:
+                    check.verify()
+                thumbnails[index] = (io.BytesIO(raw), *cached[1:])
+            except (OSError, ValueError, TypeError):
+                pass
+        if index not in thumbnails:
+            thumbnails[index] = _make_thumbnail_bytes(rec['path'], rec, *thumb_options[:3])
+        thumb = thumbnails[index]
+        new_thumbs[key] = [base64.b64encode(thumb[0].getvalue()).decode('ascii'), *thumb[1:]]
+    temporary_name = '.excel-' + uuid.uuid4().hex + '.xlsx'
+    temporary_path = os.path.join(folder, temporary_name)
+    actual_kwargs = dict(kwargs)
+    actual_kwargs.pop('workbook_name', None)
+    actual_kwargs['cached_thumbnails'] = thumbnails
+    try:
+        _build_excel_for_single_item(output_root_dir, item, temporary_name, *args[1:], **actual_kwargs)
+        if os.path.isfile(temporary_path):
+            os.replace(temporary_path, target)
+            write_cache(cache_path, {'key': signature, 'stamp': file_stamp(target)})
+            write_cache(thumb_cache_path, new_thumbs)
+        elif not records and os.path.isfile(target):
+            os.unlink(target)
+    finally:
+        if os.path.exists(temporary_path):
+            os.unlink(temporary_path)

@@ -649,6 +649,7 @@ class AnnotatorCore:
         from annotation.workers import SaveCurrentWorker
         worker = SaveCurrentWorker(self.output_dir, item, self.base_image_bgr, parent=self.main_window)
         self._save_worker = worker
+        self._prepare_save_dependencies(worker)
         worker.progress.connect(lambda done,total,message: self.set_status(f'{message} {done}/{total}')
                                 if worker is self._save_worker else None)
         worker.page_saved.connect(self._on_save_page_saved)
@@ -707,6 +708,7 @@ class AnnotatorCore:
                 parent=self.main_window,
             )
             self._save_worker = save_worker
+            self._prepare_save_dependencies(save_worker)
             # 默认信号接到状态栏
             save_worker.progress.connect(
                 lambda done, total, name: self.set_status(f"批量保存 {done}/{total}：{name}")
@@ -1591,6 +1593,14 @@ class AnnotatorCore:
             ):
                 item["ocr_pending"] = False
                 item["ocr_request_id"] = None
+
+    def _prepare_save_dependencies(self, save_worker):
+        from annotation.workers import OcrPrefetchWorker, OcrBatchPrefetchWorker
+        dependencies = [worker for worker in self.active_workers()
+                        if isinstance(worker, (OcrPrefetchWorker, OcrBatchPrefetchWorker))]
+        for worker in dependencies:
+            worker.cancel()
+        save_worker.save_dependencies = dependencies
 
     def _cancel_background_prefetch(self):
         worker = self._prefetch_worker
