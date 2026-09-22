@@ -76,7 +76,8 @@ def main():
         windows_appcast(config, args.archive, args.url, args.signature_file.read_text().strip(),
                         args.notes.read_text(encoding='utf-8'), args.output)
     else:
-        subprocess.run([str(args.tool.resolve()), '--account', args.account,
+        subprocess.run([str(args.tool.resolve()), '-o', str(args.archives.resolve() / 'appcast.xml'),
+            '--account', args.account,
             '--maximum-deltas', '0', '--download-url-prefix', https_url(args.download_url_prefix),
             str(args.archives.resolve())], check=True)
         feed = ET.parse(args.archives / 'appcast.xml')

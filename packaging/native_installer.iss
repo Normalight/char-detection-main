@@ -24,4 +24,10 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Name: "{autoprograms}\{#ProductName}"; Filename: "{app}\{#ProductExe}.exe"
 
 [Run]
-Filename: "{app}\{#ProductExe}.exe"; Flags: nowait runasoriginaluser; Check: ExpandConstant('{param:HANZITEST|0}') <> '1'
+Filename: "{app}\{#ProductExe}.exe"; Flags: nowait runasoriginaluser; Check: ShouldLaunchApplication
+
+[Code]
+function ShouldLaunchApplication: Boolean;
+begin
+  Result := ExpandConstant('{param:HANZITEST|0}') <> '1';
+end;
