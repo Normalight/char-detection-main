@@ -63,9 +63,12 @@ if not exist "dist\interactive_annotator\interactive_annotator.exe" (
 echo.
 echo [OK] Created: %CD%\dist\interactive_annotator\interactive_annotator.exe
 echo [INFO] Distribute the entire dist\interactive_annotator directory; do not copy only the exe.
-exit /b 0
 
+rem With HANZI_UPDATE_FEED (plus HANZI_UPDATE_PUBLIC_KEY and PACKAGE_VERSION) also build the native
+rem installer, named like the published <product>-<version>-windows-x64 asset.
 if defined HANZI_UPDATE_FEED (
-  call conda run --no-capture-output -n chardet python packaging/native_release.py windows
-  if errorlevel 1 exit /b 1
+    call conda run --no-capture-output -n "%CONDA_ENV%" python packaging/native_release.py windows
+    if errorlevel 1 exit /b 1
+    echo [OK] Native installer written to %CD%\dist
 )
+exit /b 0

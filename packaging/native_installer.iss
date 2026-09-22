@@ -14,7 +14,7 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 OutputDir={#OutputDir}
-OutputBaseFilename={#ProductId}-v{#ProductVersion}-windows-x64-setup
+OutputBaseFilename={#ProductId}-v{#ProductVersion}-windows-x64
 UninstallDisplayIcon={app}\{#ProductExe}.exe
 
 [Files]

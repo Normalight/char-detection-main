@@ -5,6 +5,7 @@ cd "$(dirname "$0")"
 ROOT="$PWD"
 APP_NAME="中文字符标注工具"
 BUNDLE_ID="local.character.annotator"
+PRODUCT="${PRODUCT:-char-detection-main}"
 TARGET="${1:-arm64}"
 [[ "$TARGET" == arm64 && "$#" -le 1 ]] || { echo "用法: bash build_mac.sh [arm64]" >&2; exit 2; }
 ARCHES=(arm64)
@@ -38,7 +39,7 @@ for CPU in "${ARCHES[@]}"; do
     "$ROOT/build/mac-dist-$CPU/Runtime.app/Contents/MacOS/runtime" --smoke-test
     "${RUN[@]}" -m pip freeze > "$ROOT/build/mac-dist-$CPU/dependencies.txt"
 done
-RELEASE="$ROOT/dist/切字-${PACKAGE_VERSION:-v0.0.0-dev}-macos-${TARGET}"
+RELEASE="$ROOT/dist/${PRODUCT}-${PACKAGE_VERSION:-v0.0.0-dev}-macos-${TARGET}"
 # Only generated output for this exact build target is replaced.
 rm -rf "$RELEASE"
 APP="$RELEASE/$APP_NAME.app"
@@ -74,7 +75,13 @@ for CPU in "${ARCHES[@]}"; do
     /usr/bin/arch -"$CPU" "$APP/Contents/MacOS/launcher" --smoke-test
 done
 cp MAC使用说明.txt "$RELEASE/MAC使用说明.txt"
-ZIP="$RELEASE.zip"
-rm -f "$ZIP"
-ditto -c -k --norsrc --noextattr --noqtn "$RELEASE" "$ZIP"
-echo "已生成并验证：$ZIP"
+# The signed updater archive shares the <product>-<version>-<target> name and is written by
+# native_release.py; zipping here again would replace it and leave two same-platform ZIPs in dist.
+if [[ -z "${HANZI_UPDATE_FEED:-}" ]]; then
+    ZIP="$RELEASE.zip"
+    rm -f "$ZIP"
+    ditto -c -k --norsrc --noextattr --noqtn "$RELEASE" "$ZIP"
+    echo "已生成并验证：$ZIP"
+else
+    echo "原生签名更新包：$RELEASE.zip"
+fi

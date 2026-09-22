@@ -126,4 +126,4 @@ Python 文件使用 `snake_case.py`，按职责命名；外部入口、软件标
 
 Mac 原生更新构建支持 HANZI_MAC_SIGNING=adhoc，无 Apple 签名标识时默认采用此模式；使用本地 ad-hoc 签名并保留更新包 Ed25519 校验。developer-id 模式另需证书及公证 profile。
 
-原生发布使用 `.github/workflows/native-build.yml`，传入已提交更新说明的版本。公开更新配置位于 packaging/native_update_public.json；SDK 从官方固定版本下载并校验 SHA-256，Mac bridge 源从 hanzi-update 同步。仓库变量 NATIVE_UPDATES=true 时旧 build.yml 停用。新工作流只构建/验收并上传 Artifact，更新包由本机钥匙串签名后发布；私钥不进入 CI。
+原生发布使用 `.github/workflows/native-build.yml`，传入已提交更新说明的版本。公开更新配置位于 packaging/native_update_public.json；SDK 从官方固定版本下载并校验 SHA-256，Mac bridge 源从 hanzi-update 同步。仓库变量 NATIVE_UPDATES=true 时旧 build.yml 停用。安装包资产统一为 `<软件>-vX.Y.Z-<平台>`（Windows 原生安装器 `.exe`、Mac `.zip`），与公开仓历史 Release 命名一致；`dist/` 每个平台只留一个安装包，`build_mac.sh` 在设置 HANZI_UPDATE_FEED 后不再另打包，避免同名 ZIP 覆盖签名更新包。默认运行时只构建/验收并上传 Artifact，更新包由本机钥匙串签名后发布；勾选 `publish` 输入后改用仓库 Secrets 的 `HANZI_UPDATE_PRIVATE_KEY` 签名，`packaging/native_publish.py` 发布 `<软件>-vX.Y.Z` 与 `<软件>-stable`，不勾选时私钥不进入 CI。

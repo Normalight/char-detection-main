@@ -270,6 +270,6 @@ Python 模块使用小写下划线命名，以职责区分；现有命令入口�
 
 ### 原生自动更新构建
 
-共享更新包 0.1.5 使用 Windows WinSparkle + 当前用户 Inno Setup 安装器，以及 macOS Sparkle 2。设置公开 HTTPS feed、公钥和平台签名配置后，沿用本项目平台构建入口。安装前仍遵循未保存成果处理；未配置原生更新的构建会在手动检查时提示不可用。首次从 Windows 便携版迁移需要安装新版安装器。配置和发布说明见工作区 `hanzi-update/docs/update/release.md`，验收状态见 `test_report.md`。
+共享更新包 0.1.5 使用 Windows WinSparkle + 当前用户 Inno Setup 安装器，以及 macOS Sparkle 2。设置公开 HTTPS feed、公钥和平台签名配置后，沿用本项目平台构建入口。安装前仍遵循未保存成果处理；未配置原生更新的构建会在手动检查时提示不可用。首次从 Windows 便携版迁移需要安装新版安装器。公开仓的版本资产统一为 `<软件>-vX.Y.Z-<平台>`：Windows x64 为原生安装器 `.exe`，macOS arm64 为更新 ZIP，与历史 Release 命名一致；`dist/` 每个平台只保留一个安装包。`.github/workflows/native-build.yml` 可用 `publish` 输入由 CI 用仓库 Secrets 中的私钥签名，并调用 `packaging/native_publish.py` 发布版本安装包与 `<软件>-stable` 更新源。配置和发布说明见工作区 `hanzi-update/docs/update/release.md`，验收状态见 `test_report.md`。
 
 Mac 无开发者证书时可设置 `HANZI_MAC_SIGNING=adhoc`，沿用 `bash build_mac.sh arm64`。仍需配置更新 feed、公钥和 Sparkle SDK/bridge；更新 ZIP 使用 Sparkle Ed25519 签名。此模式无需 Apple 公证，首次安装可能需要在系统隐私与安全性中允许打开。

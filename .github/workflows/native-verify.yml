@@ -37,7 +37,7 @@ jobs:
           path: installer
       - name: Install and wait for packaged application self-test
         run: |
-          $installer = Get-ChildItem installer/*-setup.exe | Select-Object -First 1
+          $installer = Get-ChildItem installer/*-windows-x64.exe | Select-Object -First 1
           $install = Join-Path $env:RUNNER_TEMP 'verified-native-app'
           $process = Start-Process $installer.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/SP-', '/NORESTART', '/HANZITEST=1', ('/DIR="' + $install + '"') -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Installer failed' }
