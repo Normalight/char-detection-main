@@ -43,6 +43,29 @@ def smoke_test():
     updates = UpdateController(window, product, is_locked=lambda: True)
     updates.startup_timer.stop()
     assert updates.action.text() == "检查更新…"
+    # Validate the native adapter and shipped SDK after final bundle assembly.
+    from hanzi_update import attach_updates
+    native = attach_updates(window, product, is_locked=lambda: True)
+    native.startup_timer.stop()
+    from hanzi_update.backends.base import UpdateConfig
+    from hanzi_update.backends import create_updater
+    config_path = Path(sys._MEIPASS) / 'native_update.json'
+    if config_path.is_file():
+        config = UpdateConfig(**json.loads(config_path.read_text(encoding='utf-8')))
+        location = Path(sys.executable).resolve().parent
+        if sys.platform == 'darwin':
+            bundles = [p for p in Path(sys.executable).resolve().parents if p.suffix == '.app']
+            location = bundles[-1]
+            assembled = (location / 'Contents/Frameworks/SparkleBridge.dylib').is_file()
+        else:
+            assembled = (location / 'WinSparkle.dll').is_file()
+        if assembled:
+            backend = create_updater(config, location, prepare=lambda: 0,
+                                     shutdown=lambda: None, event=lambda _: None)
+            if sys.platform == 'win32':
+                import ctypes
+                assert backend.bind('set_eddsa_public_key', [ctypes.c_char_p], ctypes.c_int)(config.public_key.encode()) == 1
+    native.shutdown()
     window.show()
     app.processEvents()
     window.hide()

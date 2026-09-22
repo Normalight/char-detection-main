@@ -27,7 +27,8 @@ def protection(tmp_path, monkeypatch):
                            ('hanzi_auth.update_ui', 'hanzi_auth/update_ui.py'),
                            ('hanzi_update', 'hanzi_update/__init__.py'),
                            ('hanzi_update.core', 'hanzi_update/core.py'),
-                           ('hanzi_update.ui', 'hanzi_update/ui.py')]:
+                           ('hanzi_update.ui', 'hanzi_update/ui.py'),
+                           ('hanzi_update.native_ui', 'hanzi_update/native_ui.py')]:
         file = source / relative
         file.parent.mkdir(parents=True, exist_ok=True)
         file.write_text('pass\n')

@@ -64,3 +64,8 @@ echo.
 echo [OK] Created: %CD%\dist\interactive_annotator\interactive_annotator.exe
 echo [INFO] Distribute the entire dist\interactive_annotator directory; do not copy only the exe.
 exit /b 0
+
+if defined HANZI_UPDATE_FEED (
+  call conda run --no-capture-output -n chardet python packaging/native_release.py windows
+  if errorlevel 1 exit /b 1
+)

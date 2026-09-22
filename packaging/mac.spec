@@ -31,6 +31,8 @@ if os.environ['MAC_ARCH'] == 'arm64' and os.environ.get('HANZI_MINIMAL_OPENCV', 
     datas.append(notices)
 protection = runpy.run_path(str(root / 'packaging/protection.py'))
 code_root = protection['prepare'](root)
+native_release = runpy.run_path(str(root / 'packaging/native_release.py'))
+datas.extend(native_release['analysis_data'](root))
 datas.append(protection['build_info'](root))
 a = Analysis([str(code_root / 'packaging/entry.py')],
     pathex=native_paths + [str(code_root), str(code_root / 'packaging')], datas=datas, binaries=[],

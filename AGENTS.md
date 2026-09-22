@@ -113,3 +113,17 @@ Python 文件使用 `snake_case.py`，按职责命名；外部入口、软件标
 - `utils/save_cache.py` 管理可丢弃的保存缓存。缺失缓存时重建；原图变化、框变化或输出文件变化使相应缓存失效。
 - Excel 缩略图使用快速 PNG 无损编码，按页面持久化复用；输入和布局参数不变时保留已有 Excel。Excel 通过临时文件成功替换，失败保留旧文件。
 - 保存线程等待已取消的 OCR 线程退出后再计算，等待不阻塞 GUI，仍可取消。新增行为回归见 `tests/test_incremental_save.py`。
+
+## 历史 ZIP 更新暂存
+
+以下暂存行为适用于保留的旧更新协议。
+
+自动更新的下载包、解压内容、脚本、日志及旧程序备份全部位于软件内部 `.hanzi-update-*`；更新保留安装根目录，只替换新版程序项并保留用户文件。新版完成登录后清理匹配的已完成更新。无法定位可写安装目录时提示处理。原生生命周期测试以安装目录作为助手工作目录，验证原位替换。
+
+## 原生更新
+
+`hanzi-update` 0.1.5 的 attach_updates 使用 WinSparkle / Sparkle；保留现有按钮和 closeEvent 保存契约。Windows 当前用户安装器和 Mac 外层 app 的签名/公证辅助源在 hanzi-auth/tools/desktop_packaging/native_*，通过 sync_desktop.py 同步。设置 HANZI_UPDATE_FEED、HANZI_UPDATE_PUBLIC_KEY 后现有平台构建脚本生成原生更新产物；未配置时更新入口提示不可用。PACKAGE_VERSION 派生原生版本信息，配置与已构建产物必须一致。详细流程与尚未完成的真机验收见 ../hanzi-update/docs/update/release.md 和 test_report.md。原生 feed 发布不使用旧 ZIP/SHA-256 镜像器。
+
+Mac 原生更新构建支持 HANZI_MAC_SIGNING=adhoc，无 Apple 签名标识时默认采用此模式；使用本地 ad-hoc 签名并保留更新包 Ed25519 校验。developer-id 模式另需证书及公证 profile。
+
+原生发布使用 `.github/workflows/native-build.yml`，传入已提交更新说明的版本。公开更新配置位于 packaging/native_update_public.json；SDK 从官方固定版本下载并校验 SHA-256，Mac bridge 源从 hanzi-update 同步。仓库变量 NATIVE_UPDATES=true 时旧 build.yml 停用。新工作流只构建/验收并上传 Artifact，更新包由本机钥匙串签名后发布；私钥不进入 CI。

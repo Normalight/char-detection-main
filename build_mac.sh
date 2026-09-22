@@ -65,7 +65,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
-codesign --force --sign - "$APP"
+"${RUN[@]}" packaging/native_release.py macos --app "$APP"
+if [[ -z "${HANZI_UPDATE_FEED:-}" ]]; then
+    codesign --force --sign - "$APP"
+fi
 codesign --verify --deep --strict "$APP"
 for CPU in "${ARCHES[@]}"; do
     /usr/bin/arch -"$CPU" "$APP/Contents/MacOS/launcher" --smoke-test

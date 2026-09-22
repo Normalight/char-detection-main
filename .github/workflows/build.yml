@@ -24,6 +24,7 @@ concurrency:
 
 jobs:
   prepare:
+    if: vars.NATIVE_UPDATES != 'true'
     name: Select release version
     runs-on: ubuntu-latest
     outputs:

@@ -48,6 +48,8 @@ import runpy
 from pathlib import Path
 protection = runpy.run_path(str(Path(project_dir) / 'packaging/protection.py'))
 code_root = protection['prepare'](project_dir)
+native_release = runpy.run_path(str(Path(project_dir) / 'packaging/native_release.py'))
+datas.extend(native_release['analysis_data'](project_dir))
 datas.append(protection['build_info'](project_dir))
 
 a = Analysis(
@@ -96,6 +98,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
+    version=native_release['exe_version'](project_dir),
     name='interactive_annotator',
     debug=False,
     bootloader_ignore_signals=False,
