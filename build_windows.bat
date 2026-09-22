@@ -28,8 +28,6 @@ for %%F in (
     )
 )
 
-if not exist "models\dbnet.onnx" echo [WARN] Legacy det model not found; v6-small remains usable.
-if not exist "models\crnn_lite_lstm.onnx" echo [WARN] Legacy rec model not found; v6-small remains usable.
 
 call conda run --no-capture-output -n "%CONDA_ENV%" python -c "import PyInstaller" >nul 2>&1
 if errorlevel 1 (

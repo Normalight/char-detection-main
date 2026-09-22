@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from ppocrv6.char_boxes import (
+from ocr.char_boxes import (
     adaptive_midpoint_boundaries,
     contrast_ink_map,
     estimate_border_background_luminance,

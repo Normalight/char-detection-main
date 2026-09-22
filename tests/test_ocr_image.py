@@ -2,17 +2,17 @@ from unittest.mock import Mock
 import numpy as np
 from PIL import Image
 import config
-from cutbatch import OcrHandle
-from ocr_image import load_ocr_image, prepare_ocr_image, target_size
-from worker import OcrPrefetchWorker, OcrBatchPrefetchWorker
-from storage_utils import save_item_boxes_to_disk
+from ocr.pipeline import OcrHandle
+from ocr.image import load_ocr_image, prepare_ocr_image, target_size
+from annotation.workers import OcrPrefetchWorker, OcrBatchPrefetchWorker
+from utils.storage import save_item_boxes_to_disk
 
 
 def fake_handle():
     h=OcrHandle.__new__(OcrHandle);h.det_name='v6-small';h.text_handle=Mock()
     h.text_handle.process.return_value=([],[])
     box=np.float32([[10,10],[30,10],[30,30],[10,30]])
-    h.crnnRecWithBox=lambda *args,**kwargs:[{'bbox':box.copy(),'score':.99,'result':{
+    h.recognize_rows=lambda *args,**kwargs:[{'bbox':box.copy(),'score':.99,'result':{
         'char_box_strategy':'stroke-ownership','char_list':[{'char':'甲','bbox':box.copy(),'line':[[20,10],[20,30]]}],
         'words':[{'value':'甲','bbox':box.copy()}]}}]
     return h

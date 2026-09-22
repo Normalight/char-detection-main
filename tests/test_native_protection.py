@@ -17,19 +17,22 @@ def protection(tmp_path, monkeypatch):
     source = tmp_path / 'project/build/code-protection/source'
     source.mkdir(parents=True)
     entries = []
-    for name, relative in [('app', 'app.py'), ('hanzi_auth', 'hanzi_auth/__init__.py'),
+    for name, relative in [('app', 'app.py'), ('ui.window', 'ui/window.py'), ('hanzi_auth', 'hanzi_auth/__init__.py'),
                            ('hanzi_auth.desktop', 'hanzi_auth/desktop.py'),
                            ('hanzi_auth.policy', 'hanzi_auth/policy.py'),
                            ('hanzi_auth.channel', 'hanzi_auth/channel.py'),
                            ('hanzi_auth.single_instance', 'hanzi_auth/single_instance.py'),
                            ('hanzi_auth.credentials', 'hanzi_auth/credentials.py'),
                            ('hanzi_auth.updates', 'hanzi_auth/updates.py'),
-                           ('hanzi_auth.update_ui', 'hanzi_auth/update_ui.py')]:
+                           ('hanzi_auth.update_ui', 'hanzi_auth/update_ui.py'),
+                           ('hanzi_update', 'hanzi_update/__init__.py'),
+                           ('hanzi_update.core', 'hanzi_update/core.py'),
+                           ('hanzi_update.ui', 'hanzi_update/ui.py')]:
         file = source / relative
         file.parent.mkdir(parents=True, exist_ok=True)
         file.write_text('pass\n')
         entries.append((name, str(file), 'PYMODULE'))
-    entries.append(('dbnet', '-', 'PYMODULE'))
+    entries.append(('namespace_fixture', '-', 'PYMODULE'))
     analysis = SimpleNamespace(pure=entries, binaries=[])
     return helper, source, analysis
 
@@ -47,12 +50,12 @@ def test_native_replacement_preserves_package_and_namespace(protection, monkeypa
 
     monkeypatch.setattr(subprocess, 'run', compile_stub)
     helper['apply'](analysis, source)
-    assert analysis.pure == [('dbnet', '-', 'PYMODULE')]
+    assert analysis.pure == [('namespace_fixture', '-', 'PYMODULE')]
     assert any(dest == 'hanzi_auth/__init__' + suffix for dest, _, _ in analysis.binaries)
     assert all(Path(path).is_file() for _, path, _ in analysis.binaries)
     manifest = json.loads((source.parent / 'manifest.json').read_text())
     assert manifest['backend'] == 'cython'
-    assert 'app.py' in manifest['protected_modules']
+    assert 'ui/window.py' in manifest['protected_modules']
 
 
 def test_compile_failure_never_ships_plain_fallback(protection, monkeypatch):

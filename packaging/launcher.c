@@ -1,4 +1,4 @@
-// Universal native dispatcher. Each child is a complete, independently signed app.
+// Apple Silicon launcher for the independently signed runtime app.
 #include <mach-o/dyld.h>
 #include <limits.h>
 #include <stdio.h>
@@ -13,11 +13,10 @@ int main(int argc, char **argv) {
     char *slash = strrchr(path, '/');
     if (!slash) return 1;
     *slash = '\0';
-#if defined(__arm64__)
-    const char *cpu = "arm64";
-#else
-    const char *cpu = "x86_64";
+#if !defined(__arm64__)
+#error "Build this launcher for arm64"
 #endif
+    const char *cpu = "arm64";
     int length = snprintf(target, sizeof(target), "%s/../Resources/runtime/%s/Runtime.app/Contents/MacOS/runtime", path, cpu);
     if (length < 0 || (size_t)length >= sizeof(target)) return 1;
     argv[0] = target;

@@ -7,12 +7,12 @@ import pytest
 
 
 def test_recognizer_is_importable_from_production_package():
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
     assert hasattr(module, "PPOcrV6RecHandle")
 
 
 def test_recognizer_uses_shared_midpoint_boundaries(monkeypatch):
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
     handle = module.PPOcrV6RecHandle.__new__(module.PPOcrV6RecHandle)
     handle.character = ["<blank>", "甲", "乙", "丙"]
     handle.decode_limit = len(handle.character)
@@ -52,7 +52,7 @@ def test_recognizer_uses_shared_midpoint_boundaries(monkeypatch):
 
 
 def test_recognizer_exposes_character_and_line_confidence(monkeypatch):
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
     handle = module.PPOcrV6RecHandle.__new__(module.PPOcrV6RecHandle)
     handle.character = ["<blank>", "甲", "乙"]
     handle.decode_limit = len(handle.character)
@@ -85,7 +85,7 @@ def test_recognizer_exposes_character_and_line_confidence(monkeypatch):
 
 
 def test_projection_strategy_refines_the_actual_crop(monkeypatch):
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
     handle = module.PPOcrV6RecHandle.__new__(module.PPOcrV6RecHandle)
     handle.character = ["<blank>", "甲", "乙"]
     handle.decode_limit = len(handle.character)
@@ -125,7 +125,7 @@ def test_projection_strategy_refines_the_actual_crop(monkeypatch):
 
 
 def test_unsupported_character_box_strategy_is_rejected():
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
 
     with pytest.raises(ValueError, match="char_box_strategy"):
         module.PPOcrV6RecHandle(
@@ -135,8 +135,8 @@ def test_unsupported_character_box_strategy_is_rejected():
 
 def test_out_of_dict_token_becomes_space_with_box(monkeypatch):
     # v6 字典无空格：超字典 token 应还原为空格并生成字框（对齐 legacy
-    # CRNN 的空格行为），而不是输出 '?' 噪声字符。
-    module = importlib.import_module("ppocrv6.recognizer")
+    # 词间空格行为），而不是输出 '?' 噪声字符。
+    module = importlib.import_module("ocr.recognizer")
     handle = module.PPOcrV6RecHandle.__new__(module.PPOcrV6RecHandle)
     handle.character = ["<blank>", "A", "B"]
     # vocab 维度 5，但字典只有 3：idx 3/4 是超字典 filler。
@@ -177,7 +177,7 @@ def test_out_of_dict_token_becomes_space_with_box(monkeypatch):
 
 
 def test_consecutive_filler_tokens_collapse_into_one_space():
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
     handle = module.PPOcrV6RecHandle.__new__(module.PPOcrV6RecHandle)
     handle.character = ["<blank>", "A", "B"]
     handle.decode_limit = len(handle.character)
@@ -197,7 +197,7 @@ def test_consecutive_filler_tokens_collapse_into_one_space():
 
 
 def test_inference_config_is_read_as_utf8_on_windows(monkeypatch, tmp_path):
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
     config_path = tmp_path / "inference.yml"
     config_path.write_text(
         "PostProcess:\n  character_dict: ['甲', '乙']\n",
@@ -232,7 +232,7 @@ def test_inference_config_is_read_as_utf8_on_windows(monkeypatch, tmp_path):
 
 
 def test_projection_strategy_accepts_empty_ctc_output(monkeypatch):
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
     handle = module.PPOcrV6RecHandle.__new__(module.PPOcrV6RecHandle)
     handle.character = ["<blank>", "甲"]
     handle.decode_limit = len(handle.character)
@@ -263,7 +263,7 @@ def test_projection_strategy_accepts_empty_ctc_output(monkeypatch):
 def test_polarity_strategy_accepts_empty_ctc_output(
     monkeypatch, background
 ):
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
     handle = module.PPOcrV6RecHandle.__new__(module.PPOcrV6RecHandle)
     handle.character = ["<blank>", "甲"]
     handle.decode_limit = len(handle.character)
@@ -293,7 +293,7 @@ def test_polarity_strategy_accepts_empty_ctc_output(
 def test_polarity_strategy_refines_actual_crop_without_changing_text(
     monkeypatch,
 ):
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
     handle = module.PPOcrV6RecHandle.__new__(module.PPOcrV6RecHandle)
     handle.character = ["<blank>", "甲", "乙"]
     handle.decode_limit = len(handle.character)
@@ -345,7 +345,7 @@ def test_polarity_strategy_refines_actual_crop_without_changing_text(
 
 
 def test_polarity_strategy_preserves_outer_crop_edges(monkeypatch):
-    module = importlib.import_module("ppocrv6.recognizer")
+    module = importlib.import_module("ocr.recognizer")
     handle = module.PPOcrV6RecHandle.__new__(module.PPOcrV6RecHandle)
     handle.character = ["<blank>", "甲", "乙"]
     handle.decode_limit = len(handle.character)

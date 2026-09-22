@@ -1,7 +1,7 @@
 import inspect
 import unittest
 
-from annotator_core import AnnotatorCore
+from annotation.controller import AnnotatorCore
 
 
 class AnnotatorCoreOverlayTests(unittest.TestCase):

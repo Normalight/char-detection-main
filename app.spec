@@ -7,10 +7,10 @@ import config as app_config
 # 项目根目录（用 os.getcwd()，不要用 __file__）
 project_dir = os.path.abspath(os.getcwd())
 
-# 只收集默认获胜方案 + legacy 回退，避免 tiny/medium 全部塞进发布目录。
+# 收集配置指定的检测和识别模型。
 # v6 det/rec 都必须同时带 inference.yml（后处理参数/字典）。
 datas = []
-selected_models = [app_config.model_path, app_config.crnn_model_path]
+selected_models = []
 if app_config.det_model.startswith('v6-'):
     det_tier = app_config.det_model.split('-', 1)[1]
     selected_models.append(app_config.ppocrv6_det_model_path[det_tier])
@@ -40,7 +40,7 @@ for pkg in ('fitz', 'pdf2image', 'xlsxwriter', 'yaml'):
         pass
 # 生产 PP-OCRv6 包；bench 只用于开发评测，不进入运行包。
 try:
-    hiddenimports += collect_submodules('ppocrv6')
+    hiddenimports += collect_submodules('ocr')
 except Exception:
     pass
 

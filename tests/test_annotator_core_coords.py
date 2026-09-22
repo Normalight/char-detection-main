@@ -10,7 +10,7 @@ import unittest
 
 import numpy as np
 
-from annotator_core import AnnotatorCore
+from annotation.controller import AnnotatorCore
 
 
 def _make_core(view_w=400, view_h=300):

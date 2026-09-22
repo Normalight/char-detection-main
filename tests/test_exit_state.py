@@ -7,7 +7,7 @@ from unittest import mock
 
 import numpy as np
 
-from annotator_core import AnnotatorCore
+from annotation.controller import AnnotatorCore
 
 
 def _core_with_unsaved_item():
@@ -247,7 +247,7 @@ class ExitWorkerLifecycleTests(unittest.TestCase):
 
     def test_close_event_contains_no_timed_force_wait(self):
         app_source = (
-            Path(__file__).resolve().parents[1] / "app.py"
+            Path(__file__).resolve().parents[1] / "ui/window.py"
         ).read_text(encoding="utf-8")
         close_source = app_source.split("def closeEvent", 1)[1].split(
             "def _any_worker_running",
@@ -258,7 +258,7 @@ class ExitWorkerLifecycleTests(unittest.TestCase):
 
     def test_main_window_disables_central_widget_during_exit(self):
         app_source = (
-            Path(__file__).resolve().parents[1] / "app.py"
+            Path(__file__).resolve().parents[1] / "ui/window.py"
         ).read_text(encoding="utf-8")
 
         self.assertIn(

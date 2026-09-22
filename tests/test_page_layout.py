@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import pytest
 from PIL import Image
-from ppocrv6.page_layout import refine_regular_rubbing_page
+from ocr.page_layout import refine_regular_rubbing_page
 
 
 def regular_page():
@@ -95,11 +95,11 @@ def test_new_images_do_not_cover_adjacent_body_centres(number):
 
 
 def test_pipeline_can_defer_only_the_redundant_local_refinement():
-    from ppocrv6.recognizer import PPOcrV6RecHandle
+    from ocr.recognizer import PPOcrV6RecHandle
     handle=PPOcrV6RecHandle.__new__(PPOcrV6RecHandle)
     handle.char_box_strategy='stroke-ownership'
     handle._decode_ctc=lambda _:('甲乙',[{'char':'甲','idx':10,'score':.9},{'char':'乙','idx':30,'score':.9}])
-    with patch('ppocrv6.recognizer.stroke_owned_boxes',side_effect=AssertionError('redundant refinement')):
+    with patch('ocr.recognizer.stroke_owned_boxes',side_effect=AssertionError('redundant refinement')):
         result=handle._postprocess(np.zeros((1,40,3)),1,80,Image.new('RGB',(80,48)),
                                    np.float32([[0,0],[80,0],[80,48],[0,48]]),defer_stroke_refinement=True)
     assert result['line_pred']=='甲乙'

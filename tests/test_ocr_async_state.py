@@ -6,7 +6,7 @@ from unittest import mock
 
 import numpy as np
 
-from annotator_core import AnnotatorCore
+from annotation.controller import AnnotatorCore
 
 
 def _box(x0, y0, x1, y1):

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from ppocrv6.char_boxes import independent_stroke_boxes
+from ocr.char_boxes import independent_stroke_boxes
 
 
 def glyph_pair(background=240, foreground=20):
@@ -71,8 +71,8 @@ def test_rejects_invalid_anchors(centers):
 @pytest.mark.parametrize("strategy", ["independent-strokes", "stroke-ownership"])
 @pytest.mark.parametrize("vertical", [False, True])
 def test_recognizer_maps_stroke_boxes_to_original_coordinates(vertical, strategy):
-    from ppocrv6.recognizer import PPOcrV6RecHandle
-    from storage_utils import extract_boxes_from_ocr_results
+    from ocr.recognizer import PPOcrV6RecHandle
+    from utils.storage import extract_boxes_from_ocr_results
     handle = PPOcrV6RecHandle.__new__(PPOcrV6RecHandle)
     handle.char_box_strategy = strategy
     handle._decode_ctc = lambda _preds: ("甲乙", [
@@ -100,7 +100,7 @@ def test_recognizer_maps_stroke_boxes_to_original_coordinates(vertical, strategy
 
 
 def test_independent_boxes_are_not_replaced_by_geometry_fallback():
-    from storage_utils import extract_boxes_from_ocr_results
+    from utils.storage import extract_boxes_from_ocr_results
     box = np.array([[10, 5], [22, 5], [22, 35], [10, 35]], np.float32)
     result = {"line_pred": "甲", "score": .1, "char_list": [{"bbox": box}],
               "char_box_strategy": "independent-strokes"}
@@ -130,16 +130,16 @@ def test_cjk_does_not_shrink_to_one_strong_radical():
 
 @pytest.mark.parametrize("strategy", ["independent-strokes", "stroke-ownership"])
 def test_padding_is_clipped_to_source_image_after_mapping(strategy):
-    from cutbatch import OcrHandle
+    from ocr.pipeline import OcrHandle
     from unittest.mock import Mock
     handle = OcrHandle.__new__(OcrHandle)
     polygon = np.array([[-4, -4], [44, -4], [44, 44], [-4, 44]], np.float32)
     result = {"char_box_strategy": strategy,
               "char_list": [{"bbox": polygon.copy()}], "words": [{"bbox": polygon.copy()}]}
-    handle.crnn_handle = Mock()
-    handle.crnn_handle.predict_rbg_batch.return_value = [result]
-    handle.crnn_handle.predict_rbg.return_value = result
+    handle.recognizer = Mock()
+    handle.recognizer.predict_rbg_batch.return_value = [result]
+    handle.recognizer.predict_rbg.return_value = result
     row = np.array([[0, 0], [39, 0], [39, 39], [0, 39]], np.float32)
-    output = handle.crnnRecWithBox(np.zeros((40, 40, 3), np.uint8), [row], [1])
+    output = handle.recognize_rows(np.zeros((40, 40, 3), np.uint8), [row], [1])
     for obj in output[0]["result"]["char_list"] + output[0]["result"]["words"]:
         assert obj["bbox"].min() >= 0 and obj["bbox"].max() <= 40

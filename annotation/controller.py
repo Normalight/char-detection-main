@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-annotator_core.py
+annotation/controller.py
 
 当前主线 GUI 交互核心（PySide6 版）。
 
@@ -34,9 +34,9 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-from cutbatch import OcrHandle
-from pdf_utils import get_pdf_page_count, render_pdf_page_to_pil
-from storage_utils import (
+from ocr.pipeline import OcrHandle
+from utils.pdf import get_pdf_page_count, render_pdf_page_to_pil
+from utils.storage import (
     annotation_context_matches,
     load_item_annotation_record_if_exists,
     normalize_boxes,
@@ -189,8 +189,8 @@ class AnnotatorCore:
                 "pdf_dpi": self.pdf_dpi,
                 "image_scale": self.image_scale,
                 "ocr_max_side": getattr(app_config, "ocr_max_side", 2560),
-                "det_model": getattr(app_config, "det_model", "legacy"),
-                "rec_model": getattr(app_config, "rec_model", "crnn"),
+                "det_model": getattr(app_config, "det_model", "v6-small"),
+                "rec_model": getattr(app_config, "rec_model", "v6-small"),
                 "char_box_strategy": getattr(
                     app_config,
                     "char_box_strategy",
@@ -377,7 +377,7 @@ class AnnotatorCore:
                 logger.debug("请求取消 worker 失败：%s", e)
 
     def _start_model_load(self):
-        from worker import ModelLoadWorker
+        from annotation.workers import ModelLoadWorker
         generation = self._session_generation
         model_worker = ModelLoadWorker(parent=self.main_window)
         self._model_worker = model_worker
@@ -646,7 +646,7 @@ class AnnotatorCore:
             return False
         self._cancel_background_prefetch()
         self._sync_current_boxes_to_item()
-        from worker import SaveCurrentWorker
+        from annotation.workers import SaveCurrentWorker
         worker = SaveCurrentWorker(self.output_dir, item, self.base_image_bgr, parent=self.main_window)
         self._save_worker = worker
         worker.progress.connect(lambda done,total,message: self.set_status(f'{message} {done}/{total}')
@@ -697,7 +697,7 @@ class AnnotatorCore:
 
         save_worker = None
         try:
-            from worker import SaveAllWorker
+            from annotation.workers import SaveAllWorker
             # 后台线程只操作深快照；保存期间主线程仍可安全编辑当前页。
             items_snapshot = copy.deepcopy(self.items)
             save_worker = SaveAllWorker(
@@ -1274,7 +1274,7 @@ class AnnotatorCore:
         if self._load_worker is not None:
             self._load_worker.cancel()
         self._cancel_background_prefetch()
-        from worker import PageLoadWorker
+        from annotation.workers import PageLoadWorker
         context = {'target_index': target, 'generation': self._session_generation,
                    'item_identity': self._item_identity(self.items[target]),
                    'departing_index': self.current_item_index,
@@ -1506,7 +1506,7 @@ class AnnotatorCore:
             return
         # 当前页识别优先于后台预取：先停掉批量预取，避免两个 OCR 抢 CPU。
         self._cancel_background_prefetch()
-        from worker import OcrPrefetchWorker
+        from annotation.workers import OcrPrefetchWorker
 
         target_index = self.current_item_index
         item = self.items[target_index]
@@ -1667,7 +1667,7 @@ class AnnotatorCore:
         if not jobs:
             return
 
-        from worker import OcrBatchPrefetchWorker
+        from annotation.workers import OcrBatchPrefetchWorker
         prefetch_worker = OcrBatchPrefetchWorker(
             jobs,
             self.ocr_handler,

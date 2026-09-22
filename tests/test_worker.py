@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""worker.py 的静态/语义回归。
+"""annotation.workers.py 的静态/语义回归。
 
 只测类结构与 cancel 行为，不真的启动 QThread（需要 QApplication + OCR 模型）。
 """
@@ -13,8 +13,8 @@ import numpy as np
 from PIL import Image
 from PySide6.QtTest import QSignalSpy
 
-import worker
-from worker import _BaseWorker, ModelLoadWorker, OcrPrefetchWorker, SaveAllWorker
+import annotation.workers as worker
+from annotation.workers import _BaseWorker, ModelLoadWorker, OcrPrefetchWorker, SaveAllWorker
 
 
 class WorkerStructureTests(unittest.TestCase):
@@ -71,7 +71,7 @@ class WorkerStructureTests(unittest.TestCase):
 
     def test_save_all_error_closes_progress_dialog(self):
         app_source = (
-            Path(__file__).resolve().parents[1] / "app.py"
+            Path(__file__).resolve().parents[1] / "ui/window.py"
         ).read_text(encoding="utf-8")
         self.assertIn(
             "sw.error.connect(lambda _msg, worker=sw: self._close_progress(worker))",
@@ -84,10 +84,10 @@ class WorkerStructureTests(unittest.TestCase):
 
     def test_save_all_non_success_path_is_connected_to_core_and_ui(self):
         core_source = (
-            Path(__file__).resolve().parents[1] / "annotator_core.py"
+            Path(__file__).resolve().parents[1] / "annotation/controller.py"
         ).read_text(encoding="utf-8")
         app_source = (
-            Path(__file__).resolve().parents[1] / "app.py"
+            Path(__file__).resolve().parents[1] / "ui/window.py"
         ).read_text(encoding="utf-8")
         self.assertIn(
             "save_worker.stopped.connect(",
@@ -104,7 +104,7 @@ class WorkerStructureTests(unittest.TestCase):
 
     def test_save_progress_is_non_modal_and_errors_have_one_ui_owner(self):
         app_source = (
-            Path(__file__).resolve().parents[1] / "app.py"
+            Path(__file__).resolve().parents[1] / "ui/window.py"
         ).read_text(encoding="utf-8")
         self.assertIn("modal=False", app_source)
         error_handler = app_source.split(
@@ -214,11 +214,11 @@ class SaveAllWorkerOutputTests(unittest.TestCase):
         self.assertFalse(hasattr(worker, "build_glyph_grouping_outputs"))
         with (
             mock.patch(
-                "worker._load_item_pil",
+                "annotation.workers._load_item_pil",
                 return_value=Image.new("RGB", (10, 10), "white"),
             ),
-            mock.patch("worker.save_item_boxes_to_disk", return_value=1) as save,
-            mock.patch("worker.build_excel_for_single_item") as workbook,
+            mock.patch("annotation.workers.save_item_boxes_to_disk", return_value=1) as save,
+            mock.patch("annotation.workers.build_excel_for_single_item") as workbook,
         ):
             save_worker.run()
 
@@ -229,7 +229,7 @@ class SaveAllWorkerOutputTests(unittest.TestCase):
 
 class SaveAllCoreOutcomeTests(unittest.TestCase):
     def test_model_worker_ui_hook_runs_before_worker_start(self):
-        from annotator_core import AnnotatorCore
+        from annotation.controller import AnnotatorCore
 
         core = AnnotatorCore()
         events = []
@@ -239,13 +239,13 @@ class SaveAllCoreOutcomeTests(unittest.TestCase):
             "hook" if worker is fake_worker else "wrong-worker"
         )
 
-        with mock.patch("worker.ModelLoadWorker", return_value=fake_worker):
+        with mock.patch("annotation.workers.ModelLoadWorker", return_value=fake_worker):
             core._start_model_load()
 
         self.assertEqual(events, ["hook", "start"])
 
     def test_save_worker_ui_hook_runs_before_worker_start(self):
-        from annotator_core import AnnotatorCore
+        from annotation.controller import AnnotatorCore
 
         core = AnnotatorCore()
         core.items = [
@@ -266,13 +266,13 @@ class SaveAllCoreOutcomeTests(unittest.TestCase):
             "hook" if worker is fake_worker else "wrong-worker"
         )
 
-        with mock.patch("worker.SaveAllWorker", return_value=fake_worker):
+        with mock.patch("annotation.workers.SaveAllWorker", return_value=fake_worker):
             core.save_all()
 
         self.assertEqual(events, ["hook", "start"])
 
     def test_save_all_passes_deep_snapshot_to_worker(self):
-        from annotator_core import AnnotatorCore
+        from annotation.controller import AnnotatorCore
 
         core = AnnotatorCore()
         box = np.asarray(
@@ -294,7 +294,7 @@ class SaveAllCoreOutcomeTests(unittest.TestCase):
         fake_worker = mock.MagicMock()
 
         with mock.patch(
-            "worker.SaveAllWorker",
+            "annotation.workers.SaveAllWorker",
             return_value=fake_worker,
         ) as worker_cls:
             core.save_all()
@@ -305,7 +305,7 @@ class SaveAllCoreOutcomeTests(unittest.TestCase):
         self.assertEqual(float(snapshot[0]["boxes"][0][0, 0]), 0.0)
 
     def test_save_start_exception_cleans_worker_and_returns_false(self):
-        from annotator_core import AnnotatorCore
+        from annotation.controller import AnnotatorCore
 
         core = AnnotatorCore()
         core.items = [
@@ -325,7 +325,7 @@ class SaveAllCoreOutcomeTests(unittest.TestCase):
         fake_worker.start.side_effect = RuntimeError("start failed")
         fake_worker.isRunning.return_value = False
 
-        with mock.patch("worker.SaveAllWorker", return_value=fake_worker):
+        with mock.patch("annotation.workers.SaveAllWorker", return_value=fake_worker):
             started = core.save_all()
 
         self.assertFalse(started)
@@ -338,7 +338,7 @@ class SaveAllCoreOutcomeTests(unittest.TestCase):
         fake_worker.deleteLater.assert_called_once_with()
 
     def test_stopped_save_waits_for_qthread_finished_before_release(self):
-        from annotator_core import AnnotatorCore
+        from annotation.controller import AnnotatorCore
 
         core = AnnotatorCore()
         worker_mock = mock.MagicMock()

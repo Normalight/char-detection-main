@@ -2,7 +2,7 @@
 """storage_utils 单元测试。
 
 重点回归：get_rotate_crop_image 不得对高宽比 >= 1.5 的竖排切片执行 np.rot90
-（旧 utils.py 版本的"压扁 bug"，主线版本已刻意绕开）。
+（旧 ocr_geometry.py 版本的"压扁 bug"，主线版本已刻意绕开）。
 """
 
 import json
@@ -14,7 +14,7 @@ from unittest import mock
 import numpy as np
 from PIL import Image
 
-from storage_utils import (
+from utils.storage import (
     _as_box_array,
     _order_points,
     clear_existing_crops,
@@ -112,7 +112,7 @@ class GetRotateCropImageTests(unittest.TestCase):
     def test_vertical_box_not_rotated_to_horizontal(self):
         """竖排切片（h/w >= 1.5）必须保持竖向，不得被 rot90 转横。
 
-        旧 utils.py 版本会对这种输入执行 np.rot90，导致竖排中文被压扁。
+        旧 ocr_geometry.py 版本会对这种输入执行 np.rot90，导致竖排中文被压扁。
         """
         img = np.zeros((400, 100, 3), dtype=np.uint8)
         # 30 宽 x 200 高的竖排区域，h/w = 6.67 >= 1.5
@@ -324,7 +324,7 @@ class JsonRoundTripTests(unittest.TestCase):
             [_quad(20, 20, 40, 40)],
             image_size_wh=(100, 100),
         )
-        from storage_utils import get_json_path_for_item
+        from utils.storage import get_json_path_for_item
         json_path = get_json_path_for_item(self.tmp, self.item)
         with open(json_path, "r", encoding="utf-8") as json_file:
             data = json.load(json_file)
@@ -347,7 +347,7 @@ class JsonRoundTripTests(unittest.TestCase):
 
     def test_json_contains_orientation_metadata(self):
         save_item_json(self.tmp, self.item, [_quad(0, 0, 10, 10)], image_size_wh=(50, 50))
-        from storage_utils import get_json_path_for_item
+        from utils.storage import get_json_path_for_item
         with open(get_json_path_for_item(self.tmp, self.item), "r", encoding="utf-8") as f:
             data = json.load(f)
         # 主线版本应携带这些元信息字段
@@ -361,7 +361,7 @@ class JsonRoundTripTests(unittest.TestCase):
             [_quad(0, 0, 10, 10)],
             image_size_wh=(50, 50),
         )
-        from storage_utils import get_json_path_for_item
+        from utils.storage import get_json_path_for_item
         json_path = get_json_path_for_item(self.tmp, self.item)
         with open(json_path, "r", encoding="utf-8") as json_file:
             data = json.load(json_file)
@@ -386,7 +386,7 @@ class JsonRoundTripTests(unittest.TestCase):
             [_quad(0, 0, 10, 10)],
             image_size_wh=(50, 50),
         )
-        from storage_utils import get_json_path_for_item
+        from utils.storage import get_json_path_for_item
         with open(get_json_path_for_item(self.tmp, self.item), "r", encoding="utf-8") as json_file:
             data = json.load(json_file)
         self.assertNotIn("box_recognitions", data)
@@ -434,7 +434,7 @@ class SaveSlicesTests(unittest.TestCase):
         with open(old_crop, "wb") as crop_file:
             crop_file.write(b"old-crop")
 
-        with mock.patch("storage_utils.get_rotate_crop_image", return_value=None):
+        with mock.patch("utils.storage.get_rotate_crop_image", return_value=None):
             with self.assertRaisesRegex(RuntimeError, "透视裁剪失败"):
                 save_current_slices_and_json(
                     tmp,
@@ -466,7 +466,7 @@ class SaveSlicesTests(unittest.TestCase):
             old_crop_bytes = crop_file.read()
 
         with mock.patch(
-            "storage_utils._safe_imwrite",
+            "utils.storage._safe_imwrite",
             side_effect=[True, False],
         ):
             with self.assertRaisesRegex(RuntimeError, "切片写入失败"):
@@ -507,7 +507,7 @@ class SaveSlicesTests(unittest.TestCase):
             old_crop_bytes = crop_file.read()
 
         with mock.patch(
-            "storage_utils.save_item_json",
+            "utils.storage.save_item_json",
             side_effect=OSError("json failed"),
         ):
             with self.assertRaisesRegex(OSError, "json failed"):
@@ -525,8 +525,8 @@ class SaveSlicesTests(unittest.TestCase):
     def test_clear_existing_crops_removes_old(self):
         tmp = tempfile.mkdtemp(prefix="chardet_test_")
         # 放两个旧 crop
-        import storage_utils as su
-        from storage_utils import _crop_filename
+        import utils.storage as su
+        from utils.storage import _crop_filename
         old = os.path.join(tmp, _crop_filename({"source_path": "/x/y.jpg"}, "y", 0))
         with open(old, "wb") as f:
             f.write(b"\x89PNG\r\n\x1a\n")

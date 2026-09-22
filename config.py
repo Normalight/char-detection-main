@@ -14,27 +14,12 @@ else:
     father_path  = os.path.dirname(filt_path)
 
 # -----------------------------------------------------------------------------
-# dbnet 参数
-# -----------------------------------------------------------------------------
-dbnet_max_size = 6000  # 长边最大长度
-pad_size       = 0     # 检测时 pad 尺寸，有些文档文字充满整个屏幕检测有误，需要 pad
-
-# -----------------------------------------------------------------------------
-# crnn 参数
-# -----------------------------------------------------------------------------
-crnn_lite       = True
-model_path      = os.path.join(father_path, "models", "dbnet.onnx")
-is_rgb          = True
-crnn_model_path = os.path.join(father_path, "models", "crnn_lite_lstm.onnx")
-
-# -----------------------------------------------------------------------------
 # OCR 后端选择
 # -----------------------------------------------------------------------------
-# det_model = "legacy"   用项目原 DBNet
 # det_model = "v6-small" 用 PP-OCRv6 small det（官方 ONNX + inference.yml）
 det_model = "v6-small"
 # 检测输入缩放策略：
-#   short —— 短边缩放到"检测尺寸"（可上采样也可下采样），与 legacy DBNet 语义
+#   short —— 短边缩放到"检测尺寸"（可上采样也可下采样），与检测尺寸语义
 #            一致。小图会被上采样，避免低分辨率漏检（默认）。
 #   max   —— 最长边压到"检测尺寸"且永不上采样（PaddleOCR 移动端默认）。小图会
 #            以原始低分辨率进检测，细字/窄列易漏检，UI 调大尺寸也救不回来。
@@ -57,7 +42,6 @@ ppocrv6_det_model_path = {
     ),
 }
 
-# rec_model = "crnn"     用项目原 CRNN（crnn_lite_lstm.onnx，4.7MB，最快）
 # rec_model = "v6-small" 用 PP-OCRv6 small rec（中文识别明显更准，速度慢 ~6×）
 # rec_model = "v6-tiny"  用 PP-OCRv6 tiny rec（最轻量，偶尔重复字）
 # rec_model = "v6-medium" 用 PP-OCRv6 medium rec（最准，但 77MB + 慢 15×）
@@ -75,21 +59,6 @@ ppocrv6_rec_model_path = {
     "small":  os.path.join(father_path, "models", "ppocrv6_rec", "small",  "inference.onnx"),
     "medium": os.path.join(father_path, "models", "ppocrv6_rec", "medium", "inference.onnx"),
 }
-
-# -----------------------------------------------------------------------------
-# angle 参数
-# -----------------------------------------------------------------------------
-angle_detect     = False
-angle_detect_num = 30
-angle_net_path   = os.path.join(father_path, "models", "angle_net.onnx")
-
-# -----------------------------------------------------------------------------
-# 其他
-# -----------------------------------------------------------------------------
-max_post_time = 100  # IP 访问最大次数
-from crnn.keys import alphabetChinese as alphabet
-white_ips     = []   # 白名单
-version       = 'api/v1'
 
 # OCR proxy only: preserve original pixels for display, coordinates and crops.
 ocr_max_side = 2560

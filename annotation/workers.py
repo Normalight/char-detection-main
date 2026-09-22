@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""worker.py — 长任务后台线程。
+"""annotation.workers.py — 长任务后台线程。
 
 把原图加载、OCR 预标注、当前页和批量保存等耗时调用
 从主线程移到 QThread，避免 Qt 事件循环被阻塞导致界面"未响应"。
@@ -21,10 +21,10 @@ import numpy as np
 from PIL import Image
 from PySide6.QtCore import QThread, Signal
 
-from cutbatch import OcrHandle
-from excel_utils import build_excel_for_single_item, make_crop_thumbnail
-from pdf_utils import get_pdf_page_count, render_pdf_page_to_pil
-from storage_utils import (
+from ocr.pipeline import OcrHandle
+from utils.excel import build_excel_for_single_item, make_crop_thumbnail
+from utils.pdf import get_pdf_page_count, render_pdf_page_to_pil
+from utils.storage import (
     extract_boxes_from_ocr_results,
     save_item_boxes_to_disk,
     save_current_slices_and_json,
@@ -59,7 +59,7 @@ class _BaseWorker(QThread):
 
 
 class ModelLoadWorker(_BaseWorker):
-    """加载 ONNX 模型（dbnet + crnn）。首次启动约 2-5 秒。
+    """加载 PP-OCRv6 检测与识别模型。首次启动约 2-5 秒。
 
     成功后通过 ocr_ready 投递 OcrHandle。模型加载和后续推理都由
     后台 worker 执行，主线程只编排任务并合并结果。

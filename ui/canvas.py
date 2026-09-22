@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""canvas_widget.py
+"""ui.canvas.py
 
 Qt 画布，替代原 cv2.imshow + annotator_core._redraw + annotator_core._mouse_cb。
 

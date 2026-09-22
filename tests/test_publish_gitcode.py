@@ -19,7 +19,7 @@ def test_create_timeout_queries_before_retry():
 
 def test_existing_attachment_does_not_reupload(tmp_path):
     p = m.Publisher('owner','repo','private-token')
-    f = tmp_path/'app.zip'
+    f = tmp_path/'ui.window.zip'
     p.release = Mock(return_value={'assets':[{'name':f.name}]})
     p.api = Mock()
     p.upload('v1.0.0',f)
@@ -28,7 +28,7 @@ def test_existing_attachment_does_not_reupload(tmp_path):
 
 def test_upload_keeps_auth_off_storage(monkeypatch, tmp_path):
     p = m.Publisher('owner','repo','private-token')
-    f = tmp_path/'app.zip'
+    f = tmp_path/'ui.window.zip'
     f.write_bytes(b'archive')
     p.release = Mock(return_value={'assets':[]})
     headers = {'x-obs-callback':'callback','Content-Type':'application/zip'}
@@ -55,7 +55,7 @@ def test_standalone_sync_reads_explicit_release_event(monkeypatch, tmp_path):
     event = tmp_path / 'release-event.json'
     event.write_text(json.dumps({'release': {'tag_name': 'v1.0.0', 'name': '1.0.0', 'body': 'notes'}}))
     files = []
-    for target in ('windows-x64', 'macos-arm64', 'macos-x86_64'):
+    for target in ('windows-x64', 'macos-arm64'):
         f = tmp_path / ('工具-v1.0.0-' + target + '.zip')
         f.write_bytes(b'test')
         files.append(f)
@@ -72,10 +72,10 @@ def test_standalone_sync_reads_explicit_release_event(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     m.main()
     client.ensure_release.assert_called_once_with('v1.0.0', '1.0.0', 'notes')
-    assert client.upload.call_count == 4
+    assert client.upload.call_count == 3
     assert json.loads((tmp_path / 'hanzi-update.json').read_text()) == json.loads((tmp_path / 'gitcode-release.json').read_text())
     records = json.loads((tmp_path / 'gitcode-release.json').read_text())
-    assert len(records) == 3
+    assert len(records) == 2
     assert all(record['url'].isascii() for record in records)
 
 

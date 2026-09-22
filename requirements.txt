@@ -9,18 +9,18 @@ Pillow
 # v6 det/rec 的 inference.yml 参数与字典解析
 PyYAML
 
-# 几何运算（dbnet 后处理）
+# 几何运算（OCR 检测后处理）
 Shapely
 pyclipper
 
-# Excel 输出（excel_utils.py）
+# Excel 输出（utils/excel.py）
 xlsxwriter>=3.1.0
 
-# PDF 输入（pdf_utils.py；优先用 PyMuPDF，pdf2image 需要系统安装 poppler）
+# PDF 输入（utils/pdf.py；优先用 PyMuPDF，pdf2image 需要系统安装 poppler）
 PyMuPDF>=1.23.0
 pdf2image>=1.17.0
 
-# GUI（app.py / canvas_widget.py）
+# GUI（app.py / ui/canvas.py）
 # Qt 的 keyPressEvent 直接吃 WM_KEYDOWN，不经 IME，中文输入法激活时快捷键也照常触发。
 PySide6>=6.5
 
@@ -28,4 +28,5 @@ PySide6>=6.5
 # pyinstaller
 
 # Shared desktop login package (vendored for independent builds).
-./vendor/hanzi_auth-0.2.3-py3-none-any.whl
+./vendor/hanzi_update-0.1.1-py3-none-any.whl
+./vendor/hanzi_auth-0.2.4-py3-none-any.whl

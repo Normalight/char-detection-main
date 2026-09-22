@@ -2,7 +2,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from unittest.mock import Mock, patch
 import numpy as np
-from annotator_core import AnnotatorCore
+from annotation.controller import AnnotatorCore
 
 
 def dirty_core():
@@ -85,7 +85,7 @@ def test_restart_save_success_continues_only_after_saved_worker_finishes():
 
 def test_ui_keeps_new_paths_pending_until_old_session_has_stopped(tmp_path):
     from PySide6.QtWidgets import QApplication
-    from app import MainWindow
+    from ui.window import MainWindow
     qt = QApplication.instance() or QApplication([])
     window = MainWindow()
     core = window.core
@@ -111,7 +111,7 @@ def test_ui_keeps_new_paths_pending_until_old_session_has_stopped(tmp_path):
 
 
 def test_new_geometry_revision_rejects_old_tight_box_context():
-    from storage_utils import annotation_context_matches
+    from utils.storage import annotation_context_matches
     core = AnnotatorCore()
     current = core._current_annotation_context()
     previous = {key: value for key, value in current.items() if key != "char_box_revision"}

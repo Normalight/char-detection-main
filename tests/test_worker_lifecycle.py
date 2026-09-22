@@ -5,7 +5,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from annotator_core import AnnotatorCore
+from annotation.controller import AnnotatorCore
 
 
 class WorkerRegistryTests(unittest.TestCase):

@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ppocrv6.detector import (
+from ocr.detector import (
     PPOcrV6Detector,
     calculate_resized_shape,
     load_detector_config,
@@ -91,7 +91,7 @@ def test_constructor_overrides_win_over_inference_yml(detector_yml):
         def get_inputs(self):
             return [FakeInput()]
 
-    with patch("ppocrv6.detector._build_session", return_value=FakeSession()):
+    with patch("ocr.detector._build_session", return_value=FakeSession()):
         detector = PPOcrV6Detector(
             "unused.onnx",
             yml_path=detector_yml,

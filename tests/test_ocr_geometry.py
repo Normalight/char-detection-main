@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""CRNN _postprocess dtype 回归测试。
+"""OCR 坐标回映 dtype 回归测试。
 
 历史上 reverse_rotate_crop_image 用 `points = np.float32(points)` 复用调用方数组，
 当 bbox 已是 float32 时不复制，后续 `points[:, 0] -= left` 直接改坏调用方 bbox。
 表现：用 float32 bbox 调用 predict_rbg 后，所有字框都堆在图像原点（y=0-行高）。
 
 int16 / float64 输入因 dtype 不同恰好触发了 np.float32 的复制路径，掩盖了这个 bug，
-导致 bench/compare_e2e.py（float32 bbox）和生产 cutbatch（int16 bbox）行为不一致。
+导致 bench/compare_e2e.py（float32 bbox）和生产 ocr_pipeline（int16 bbox）行为不一致。
 
 本测试不加载 ONNX 模型，直接对 reverse_rotate_crop_image 验证两点：
   1) 函数不修改入参 points
@@ -16,9 +16,8 @@ int16 / float64 输入因 dtype 不同恰好触发了 np.float32 的复制路径
 import unittest
 
 import numpy as np
-from PIL import Image
 
-from crnn.CRNN import CRNNHandle, reverse_rotate_crop_image
+from ocr.geometry import reverse_rotate_crop_image
 
 
 class ReverseRotateCropImageDtypeTest(unittest.TestCase):
@@ -26,7 +25,7 @@ class ReverseRotateCropImageDtypeTest(unittest.TestCase):
         return np.array([[26, 455], [619, 455], [619, 479], [26, 479]], dtype=dtype)
 
     def _bbox_vertical(self, dtype):
-        # 竖排：高/宽 >= 1.5 会走 Srotate(-90) 分支
+        # 竖排：高/宽 >= 1.5 会走 rotate_point_clockwise(-90) 分支
         return np.array([[100, 100], [124, 100], [124, 460], [100, 460]], dtype=dtype)
 
     def test_does_not_mutate_int16_bbox(self):
@@ -75,7 +74,7 @@ class ReverseRotateCropImageDtypeTest(unittest.TestCase):
         self.assertEqual(out_int, out_f64)
 
     def test_dtype_invariance_vertical(self):
-        """竖排（走 Srotate 分支）也必须 dtype 无关。"""
+        """竖排（走 rotate_point_clockwise 分支）也必须 dtype 无关。"""
         part_points = [[0, 0], [0, 30]]
         out_int = reverse_rotate_crop_image(
             None, None, self._bbox_vertical(np.int16), part_points, (0, 0))
@@ -84,64 +83,6 @@ class ReverseRotateCropImageDtypeTest(unittest.TestCase):
         self.assertEqual(out_int, out_f32)
 
 
-class CrnnConfidenceTests(unittest.TestCase):
-    def test_postprocess_adds_character_and_line_confidence(self):
-        handle = object.__new__(CRNNHandle)
-        preds = np.asarray(
-            [
-                [0.0, 4.0, 0.0],
-                [4.0, 0.0, 0.0],
-                [0.0, 0.0, 2.0],
-            ],
-            dtype=np.float32,
-        )
-        crop = Image.new("RGB", (12, 24), "white")
-        bbox = np.asarray(
-            [[0, 0], [12, 0], [12, 24], [0, 24]],
-            dtype=np.float32,
-        )
-
-        result = handle._postprocess(
-            preds,
-            scale=1.0,
-            w=12,
-            crop_im=crop,
-            bbox=bbox,
-        )
-
-        self.assertEqual(len(result["char_list"]), 2)
-        self.assertTrue(all(
-            0.0 < item["score"] <= 1.0
-            for item in result["char_list"]
-        ))
-        self.assertAlmostEqual(
-            result["score"],
-            float(np.mean([
-                item["score"] for item in result["char_list"]
-            ])),
-        )
-
-    def test_probability_output_is_not_softmaxed_twice(self):
-        handle = object.__new__(CRNNHandle)
-        preds = np.asarray(
-            [[0.05, 0.9, 0.05]],
-            dtype=np.float32,
-        )
-        crop = Image.new("RGB", (8, 8), "white")
-        bbox = np.asarray(
-            [[0, 0], [8, 0], [8, 8], [0, 8]],
-            dtype=np.float32,
-        )
-
-        result = handle._postprocess(
-            preds,
-            scale=1.0,
-            w=8,
-            crop_im=crop,
-            bbox=bbox,
-        )
-
-        self.assertAlmostEqual(result["char_list"][0]["score"], 0.9)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-excel_utils.py
+utils/excel.py
 
 Excel 导出：中文横/竖排对齐、防重叠、避免扁图、缩略图控体积。
 
@@ -12,6 +12,8 @@ Excel 导出：中文横/竖排对齐、防重叠、避免扁图、缩略图控�
 5. 单元格统一设置为正方形，图片等比例缩放并居中，不拉伸、不压扁；
 6. 插入缩略图而不是原始大图，降低一两千张图时的 xlsx 体积。
 """
+
+from utils.paths import get_output_dir_for_item as get_item_folder_and_prefix, get_json_candidates
 
 import glob
 import io
@@ -71,36 +73,9 @@ _TRANS_TABLE = str.maketrans({ch: '_' for ch in _INVALID_SHEET_CHARS})
 # =========================
 
 def get_item_folder(output_root_dir, item):
-    """获取该 item 对应的输出文件夹路径。保留原函数名，兼容 annotator_core.py。"""
+    """获取该 item 对应的输出文件夹路径。保留原函数名，兼容 annotation/controller.py。"""
     folder, _ = get_item_folder_and_prefix(output_root_dir, item)
     return folder
-
-
-def get_item_folder_and_prefix(output_root_dir, item) -> Tuple[str, str]:
-    """返回 item 输出文件夹和 JSON/切片常用前缀。逻辑与 storage_utils.py 保持一致。"""
-    if item["type"] == "image":
-        stem = os.path.splitext(os.path.basename(item["source_path"]))[0]
-        return os.path.join(output_root_dir, stem), stem
-
-    pdf_stem = os.path.splitext(os.path.basename(item["source_path"]))[0]
-    page_folder = f"page_{item['page_index'] + 1:03d}"
-    prefix = f"{pdf_stem}_p{item['page_index'] + 1:03d}"
-    return os.path.join(output_root_dir, pdf_stem, page_folder), prefix
-
-
-def get_json_candidates(output_root_dir, item) -> List[str]:
-    """给出可能的 JSON 路径，兼容新版与旧版命名方式。"""
-    folder, prefix = get_item_folder_and_prefix(output_root_dir, item)
-    candidates = [
-        os.path.join(folder, f"{prefix}.json"),
-        os.path.join(folder, f"{os.path.basename(folder)}.json"),
-    ]
-    out, seen = [], set()
-    for p in candidates:
-        if p not in seen:
-            out.append(p)
-            seen.add(p)
-    return out
 
 
 def load_boxes_from_json(output_root_dir, item) -> Tuple[List, Optional[str]]:

@@ -138,9 +138,9 @@ def main():
     release = event['release']
     tag = release['tag_name']
     files = sorted(args.assets.rglob('*.zip'))
-    targets = ('windows-x64', 'macos-x86_64', 'macos-arm64')
-    if len(files) != 3 or not all(sum(f.name.endswith('-' + t + '.zip') for f in files) == 1 for t in targets):
-        raise RuntimeError('Expected exactly one installer for each of the three platforms')
+    targets = ('windows-x64', 'macos-arm64')
+    if len(files) != len(targets) or not all(sum(f.name.endswith('-' + t + '.zip') for f in files) == 1 for t in targets):
+        raise RuntimeError('Expected exactly one installer for Windows x64 and macOS arm64')
     body = release.get('body') or ''
     publisher.ensure_release(tag, release.get('name') or tag, body)
     for file in files:

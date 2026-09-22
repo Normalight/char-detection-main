@@ -2,10 +2,10 @@ from unittest.mock import Mock
 import numpy as np
 from PIL import Image
 import config
-from cutbatch import OcrHandle
-from annotator_core import AnnotatorCore
-from worker import _load_item_pil
-from storage_utils import save_item_boxes_to_disk
+from ocr.pipeline import OcrHandle
+from annotation.controller import AnnotatorCore
+from annotation.workers import _load_item_pil
+from utils.storage import save_item_boxes_to_disk
 
 
 def test_proxy_maps_all_geometry_with_actual_rounded_axes(monkeypatch):
@@ -18,7 +18,7 @@ def test_proxy_maps_all_geometry_with_actual_rounded_axes(monkeypatch):
     handle.text_handle.process.return_value = ([], [])
     quad = np.array([[10, 20], [30, 20], [30, 40], [10, 40]])
     line = np.array([[20, 20], [20, 40]])
-    handle.crnnRecWithBox = Mock(return_value=[{"bbox": quad.copy(), "result": {
+    handle.recognize_rows = Mock(return_value=[{"bbox": quad.copy(), "result": {
         "char_list": [{"bbox": quad.copy(), "line": line.copy()}],
         "words": [{"bbox": quad.copy()}]}}])
     rows = handle.text_predict(image, 960)
@@ -55,7 +55,7 @@ def test_cancel_after_detection_skips_recognition():
     handle.det_name = "v6-small"
     handle.text_handle = Mock()
     handle.text_handle.process.return_value = ([], [])
-    handle.crnnRecWithBox = Mock()
+    handle.recognize_rows = Mock()
     cancelled = Mock(side_effect=[False, True])
     assert handle.text_predict(Image.new("RGB", (10, 10)), 960, cancel_check=cancelled) == []
-    handle.crnnRecWithBox.assert_not_called()
+    handle.recognize_rows.assert_not_called()

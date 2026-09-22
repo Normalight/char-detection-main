@@ -6,8 +6,8 @@ from unittest.mock import patch
 import numpy as np
 from PIL import Image
 
-from cutbatch import _deduplicate_text_rows
-from ppocrv6.stroke_ownership import _separated_column_boxes, refine_stroke_row
+from ocr.pipeline import _deduplicate_text_rows
+from ocr.stroke_ownership import _separated_column_boxes, refine_stroke_row
 
 
 def test_pale_margin_cannot_invert_dark_text_core():
@@ -33,7 +33,7 @@ def test_c1_has_one_box_per_visual_position_without_expensive_pixel_growth():
     bgr = np.asarray(image)[:, :, ::-1].copy()
     visual_y = np.array([104,164,231,296,358,425,487,553,615,680,739])*source_w/1100*factors[1]
     count = 0
-    with patch('ppocrv6.stroke_ownership._split_joined', side_effect=AssertionError('unexpected slow fallback')):
+    with patch('ocr.stroke_ownership._split_joined', side_effect=AssertionError('unexpected slow fallback')):
         for column in fixture['columns']:
             characters = copy.deepcopy(column['characters'])
             for item in characters:

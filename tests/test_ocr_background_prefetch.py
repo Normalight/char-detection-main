@@ -7,9 +7,9 @@ from unittest import mock
 import numpy as np
 from PIL import Image
 
-import annotator_core
-from annotator_core import AnnotatorCore
-from worker import OcrBatchPrefetchWorker
+import annotation.controller as annotator_core
+from annotation.controller import AnnotatorCore
+from annotation.workers import OcrBatchPrefetchWorker
 
 
 def _box(x0, y0, x1, y1):
@@ -134,7 +134,7 @@ class PrefetchSchedulingTests(unittest.TestCase):
                 "load_item_annotation_record_if_exists",
                 side_effect=fake_record,
             ),
-            mock.patch("worker.OcrBatchPrefetchWorker", fake_cls),
+            mock.patch("annotation.workers.OcrBatchPrefetchWorker", fake_cls),
         ):
             core._maybe_start_background_prefetch()
 
@@ -155,7 +155,7 @@ class PrefetchSchedulingTests(unittest.TestCase):
 
     def test_prefetch_waits_when_busy_or_priority_conflicts(self):
         fake_cls, created = self._fake_worker_class()
-        with mock.patch("worker.OcrBatchPrefetchWorker", fake_cls):
+        with mock.patch("annotation.workers.OcrBatchPrefetchWorker", fake_cls):
             # 模型未就绪
             core = _core([_item("a")], handler=None)
             core._maybe_start_background_prefetch()
@@ -265,7 +265,7 @@ class PrefetchSchedulingTests(unittest.TestCase):
             def start(self):
                 pass
 
-        with mock.patch("worker.OcrPrefetchWorker", FakeSingleWorker):
+        with mock.patch("annotation.workers.OcrPrefetchWorker", FakeSingleWorker):
             core._track_worker = mock.MagicMock()
             core._start_ocr_prefetch(Image.new("RGB", (4, 4)))
 
@@ -283,7 +283,7 @@ class PrefetchSchedulingTests(unittest.TestCase):
             def start(self):
                 pass
 
-        with mock.patch("worker.SaveAllWorker", FakeSaveWorker):
+        with mock.patch("annotation.workers.SaveAllWorker", FakeSaveWorker):
             core._track_worker = mock.MagicMock()
             core.save_all()
 
@@ -383,7 +383,7 @@ class PrefetchWorkerBehaviorTests(unittest.TestCase):
                 jobs, FakeOcr(), 960, "char", 200, None, 1.0
             )
             with mock.patch(
-                "worker.extract_boxes_from_ocr_results", return_value=boxes
+                "annotation.workers.extract_boxes_from_ocr_results", return_value=boxes
             ):
                 done, failed, ok = self._collect(worker)
                 worker.run()
@@ -415,7 +415,7 @@ class PrefetchWorkerBehaviorTests(unittest.TestCase):
         done, failed, ok = self._collect(worker)
         worker.cancel()
         with mock.patch(
-            "worker.extract_boxes_from_ocr_results", return_value=[]
+            "annotation.workers.extract_boxes_from_ocr_results", return_value=[]
         ) as extract:
             worker.run()
 

@@ -3,15 +3,13 @@
 
 只测源码层面的不变量，避免：
 - 启动真实 QApplication（CI 可能没显示环境）
-- 触发 annotator_core → cutbatch → onnxruntime 依赖链
+- 触发 annotator_core → ocr_pipeline → onnxruntime 依赖链
 """
 
 import inspect
 import unittest
 
-import canvas_widget
-
-
+import ui.canvas as canvas_widget
 class CanvasWidgetSourceTests(unittest.TestCase):
     def test_paint_event_does_not_render_mode_labels(self):
         """历史 bug：原 cv2 _redraw 在画布写 CREATE/ROTATE/NAV MODE 文字。

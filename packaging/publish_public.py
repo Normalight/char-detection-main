@@ -16,7 +16,7 @@ import zipfile
 LOGGER = logging.getLogger(__name__)
 PUBLIC_REPO = 'Normalight/hanzi-soft'
 PRODUCTS = {'char-detection-main': '字符检测', 'group-by-character': '字形归并'}
-TARGETS = {'windows-x64', 'macos-arm64', 'macos-x86_64'}
+TARGETS = {'windows-x64', 'macos-arm64'}
 
 
 class PublishError(RuntimeError):
@@ -56,7 +56,7 @@ def stage_assets(directory, stage, product, version, source_commit):
                     raise PublishError('Installer identity does not match the release')
         selected[target] = path
     if set(selected) != TARGETS:
-        raise PublishError('Wait for all three platform ZIPs')
+        raise PublishError('Wait for both Windows x64 and macOS arm64 ZIPs')
     stage = Path(stage)
     stage.mkdir(parents=True, exist_ok=True)
     assets = []
@@ -120,7 +120,7 @@ def publish(client, stage, manifest):
     release = client.release(tag)
     if release is None:
         notes = Path(stage) / 'public-notes.md'
-        notes.write_text(f"{PRODUCTS[product]} {version}\n\n提供 Windows x64、macOS Apple Silicon 和 macOS Intel 安装包。\n\n"
+        notes.write_text(f"{PRODUCTS[product]} {version}\n\n提供 Windows x64 和 macOS Apple Silicon 安装包。\n\n"
                          '下载后可通过 SHA256SUMS.txt 校验文件。\n', encoding='utf-8')
         try:
             client.call('release', 'create', tag, '--repo', PUBLIC_REPO, '--draft',

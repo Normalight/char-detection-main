@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from ppocrv6.stroke_ownership import _separated_column_boxes, refine_stroke_row, stroke_owned_boxes
+from ocr.stroke_ownership import _separated_column_boxes, refine_stroke_row, stroke_owned_boxes
 
 
 def test_shaded_paper_and_page_rules_do_not_become_character_ink():
@@ -57,15 +57,15 @@ def test_reported_page_keeps_46_glyphs_clear_of_frame_and_adjacent_centres():
 
 @pytest.mark.parametrize('det,rec,suppressed',[(.55,.306,True),(.95,.306,False),(.55,.9,False),(.55,None,False)])
 def test_only_jointly_weak_detection_and_recognition_are_suppressed(det,rec,suppressed):
-    from cutbatch import OcrHandle
+    from ocr.pipeline import OcrHandle
     handle=OcrHandle.__new__(OcrHandle)
     box=np.float32([[1,1],[18,1],[18,18],[1,18]])
     candidate={'char_box_strategy':'stroke-ownership','line_pred':'鱼',
                'char_list':[{'char':'鱼','bbox':box.copy()}], 'words':[]}
     if rec is not None: candidate['score']=rec
-    handle.crnn_handle=Mock()
-    handle.crnn_handle.predict_rbg_batch.return_value=[candidate]
-    output=handle.crnnRecWithBox(np.full((20,20,3),255,np.uint8),[box],[det])[0]['result']
+    handle.recognizer=Mock()
+    handle.recognizer.predict_rbg_batch.return_value=[candidate]
+    output=handle.recognize_rows(np.full((20,20,3),255,np.uint8),[box],[det])[0]['result']
     assert len(output['char_list']) == (0 if suppressed else 1)
     assert ('suppressed_candidate' in output) is suppressed
     if suppressed:

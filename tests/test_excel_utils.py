@@ -10,7 +10,7 @@ import os
 import tempfile
 import unittest
 
-from excel_utils import (
+from utils.excel import (
     _box_features,
     assign_excel_positions,
     list_saved_crops_for_item,

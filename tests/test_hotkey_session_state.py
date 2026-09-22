@@ -9,7 +9,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QWidget
 
-from annotator_core import AnnotatorCore
+from annotation.controller import AnnotatorCore
 
 
 class HotkeySessionTests(unittest.TestCase):

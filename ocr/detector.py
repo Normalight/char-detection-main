@@ -22,7 +22,7 @@ import onnxruntime as ort
 from PIL import Image
 import yaml
 
-from dbnet.decode import SegDetectorRepresenter
+from ocr.postprocess import SegDetectorRepresenter
 
 logger = logging.getLogger(__name__)
 

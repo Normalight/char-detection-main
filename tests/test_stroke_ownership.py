@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from ppocrv6.stroke_ownership import stroke_owned_boxes, refine_stroke_row
+from ocr.stroke_ownership import stroke_owned_boxes, refine_stroke_row
 
 
 def test_faint_tip_grows_from_strong_stroke_without_proportional_padding():

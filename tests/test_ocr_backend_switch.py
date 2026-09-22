@@ -4,19 +4,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import config
-import cutbatch
+import ocr.pipeline as ocr_pipeline
 import numpy as np
 from PIL import Image
 
 
-def test_legacy_detector_dispatch():
-    with patch.object(cutbatch, "det_model", "legacy"):
-        with patch("cutbatch.DBNET", return_value="LEGACY") as constructor:
-            handle, name = cutbatch._build_det_handle()
-
-    constructor.assert_called_once_with(cutbatch.model_path)
-    assert handle == "LEGACY"
-    assert name == "legacy-dbnet"
 
 
 def test_v6_small_detector_dispatch():
@@ -27,19 +19,19 @@ def test_v6_small_detector_dispatch():
             self.path = path
             self.kwargs = kwargs
 
-    with patch.object(cutbatch, "det_model", "v6-small"):
+    with patch.object(ocr_pipeline, "det_model", "v6-small"):
         with patch.object(
-            cutbatch,
+            ocr_pipeline,
             "ppocrv6_det_model_path",
             {"small": model_path},
             create=True,
         ):
             with patch("os.path.exists", return_value=True):
                 with patch.dict(
-                    cutbatch.__dict__,
+                    ocr_pipeline.__dict__,
                     {"PPOcrV6Detector": FakeDetector},
                 ):
-                    handle, name = cutbatch._build_det_handle()
+                    handle, name = ocr_pipeline._build_det_handle()
 
     assert name == "v6-small"
     assert isinstance(handle, FakeDetector)
@@ -57,53 +49,52 @@ def test_v6_detector_dispatch_forwards_box_thresh_override():
             self.path = path
             self.kwargs = kwargs
 
-    with patch.object(cutbatch, "det_model", "v6-small"):
+    with patch.object(ocr_pipeline, "det_model", "v6-small"):
         with patch.object(
-            cutbatch,
+            ocr_pipeline,
             "ppocrv6_det_model_path",
             {"small": model_path},
             create=True,
         ):
             with patch("os.path.exists", return_value=True):
                 with patch.dict(
-                    cutbatch.__dict__,
+                    ocr_pipeline.__dict__,
                     {"PPOcrV6Detector": FakeDetector},
                 ):
                     with patch.object(
-                        cutbatch, "ppocrv6_det_box_thresh", 0.45
+                        ocr_pipeline, "ppocrv6_det_box_thresh", 0.45
                     ):
-                        handle, name = cutbatch._build_det_handle()
+                        handle, name = ocr_pipeline._build_det_handle()
 
     assert name == "v6-small"
     assert handle.kwargs["box_thresh"] == 0.45
 
 
 def test_unknown_detector_raises_clear_error():
-    with patch.object(cutbatch, "det_model", "v7-imaginary"):
+    with patch.object(ocr_pipeline, "det_model", "v7-imaginary"):
         try:
-            cutbatch._build_det_handle()
+            ocr_pipeline._build_det_handle()
         except RuntimeError as exc:
             message = str(exc)
         else:
             raise AssertionError("unknown detector did not raise")
 
     assert "未知 det_model" in message
-    assert "legacy" in message
     assert "v6-small" in message
 
 
 def test_missing_v6_detector_file_raises_download_hint():
     missing = "/nonexistent/ppocrv6/small/inference.onnx"
-    with patch.object(cutbatch, "det_model", "v6-small"):
+    with patch.object(ocr_pipeline, "det_model", "v6-small"):
         with patch.object(
-            cutbatch,
+            ocr_pipeline,
             "ppocrv6_det_model_path",
             {"small": missing},
             create=True,
         ):
             with patch("os.path.exists", return_value=False):
                 try:
-                    cutbatch._build_det_handle()
+                    ocr_pipeline._build_det_handle()
                 except RuntimeError as exc:
                     message = str(exc)
                 else:
@@ -133,13 +124,13 @@ def test_ocr_handle_does_not_expose_grouping_cache_id():
 
     recognizer = FakeRecognizer()
     with (
-        patch("cutbatch._build_det_handle", return_value=(object(), "det")),
+        patch("ocr.pipeline._build_det_handle", return_value=(object(), "det")),
         patch(
-            "cutbatch._build_rec_handle",
+            "ocr.pipeline._build_rec_handle",
             return_value=(recognizer, "v6-small"),
         ),
     ):
-        handle = cutbatch.OcrHandle()
+        handle = ocr_pipeline.OcrHandle()
 
     assert not hasattr(handle, "rec_cache_id")
     assert not hasattr(recognizer, "rec_cache_id")
@@ -154,7 +145,7 @@ def test_default_models_use_supported_small_pipeline():
 def test_pyinstaller_collects_production_ppocrv6_without_bench_package():
     source = Path("app.spec").read_text(encoding="utf-8")
 
-    assert "collect_submodules('ppocrv6')" in source
+    assert "collect_submodules('ocr')" in source
     assert "collect_submodules('bench')" not in source
     assert "ppocrv6_det_model_path" in source
     assert "ppocrv6_rec_model_path" in source
@@ -192,10 +183,10 @@ def _capture_detector_input(detector_name):
             captured["limit"] = limit_side_len
             return [], []
 
-    handle = cutbatch.OcrHandle.__new__(cutbatch.OcrHandle)
+    handle = ocr_pipeline.OcrHandle.__new__(ocr_pipeline.OcrHandle)
     handle.det_name = detector_name
     handle.text_handle = FakeDetector()
-    handle.crnnRecWithBox = lambda _image, _boxes, _scores: []
+    handle.recognize_rows = lambda _image, _boxes, _scores: []
     image = Image.fromarray(
         np.asarray([[[11, 22, 33]]], dtype=np.uint8), mode="RGB"
     )
@@ -203,10 +194,6 @@ def _capture_detector_input(detector_name):
     return captured
 
 
-def test_legacy_detector_receives_explicit_bgr_input():
-    captured = _capture_detector_input("legacy-dbnet")
-    assert captured["image"].tolist() == [[[33, 22, 11]]]
-    assert captured["limit"] == 960
 
 
 def test_v6_detector_receives_rgb_input():

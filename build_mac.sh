@@ -1,15 +1,16 @@
 #!/bin/bash
-# Build complete native runtimes, then wrap them in one double-clickable app.
+# Build the Apple Silicon runtime and a double-clickable application.
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT="$PWD"
 APP_NAME="中文字符标注工具"
 BUNDLE_ID="local.character.annotator"
-TARGET="${1:-universal}"
-case "$TARGET" in universal) ARCHES=(arm64 x86_64);; arm64|x86_64) ARCHES=("$TARGET");; *) echo "用法: bash build_mac.sh [universal|arm64|x86_64]" >&2; exit 2;; esac
+TARGET="${1:-arm64}"
+[[ "$TARGET" == arm64 && "$#" -le 1 ]] || { echo "用法: bash build_mac.sh [arm64]" >&2; exit 2; }
+ARCHES=(arm64)
 [[ "$(uname -s)" == Darwin ]] || { echo '必须在 macOS 上构建。' >&2; exit 1; }
 xcrun --find clang >/dev/null || { echo '请先执行 xcode-select --install' >&2; exit 1; }
-# Use actual developer tools instead of /usr/bin xcrun stubs under Rosetta.
+# Use the selected Xcode developer tools.
 export PATH="$(dirname "$(xcrun --find lipo)"):$PATH"
 # Framework Python does not always supply an SDK sysroot to extension builds.
 export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
@@ -18,10 +19,10 @@ export CXX="$(xcrun --find clang++)"
 for CPU in "${ARCHES[@]}"; do
     export ARCHFLAGS="-arch $CPU"
     export PYINSTALLER_CONFIG_DIR="$ROOT/build/mac-cache-$CPU"
-    if [[ "$CPU" == arm64 ]]; then PY="${PYTHON_ARM64:-}"; else PY="${PYTHON_X86_64:-}"; fi
+    PY="${PYTHON_ARM64:-}"
     if [[ -z "$PY" ]]; then
-        command -v uv >/dev/null || { echo "请安装 uv，或设置 PYTHON_ARM64 / PYTHON_X86_64 为对应架构的 Python 3.11 路径。" >&2; exit 1; }
-        UV_CPU="$CPU"; [[ "$CPU" != arm64 ]] || UV_CPU=aarch64
+        command -v uv >/dev/null || { echo "请安装 uv，或设置 PYTHON_ARM64 为 arm64 架构的 Python 3.11 路径。" >&2; exit 1; }
+        UV_CPU=aarch64
         uv python install "cpython-3.11-macos-${UV_CPU}-none"
         PY="$(uv python find "cpython-3.11-macos-${UV_CPU}-none")"
     fi

@@ -1,33 +1,10 @@
 # -*- coding: utf-8 -*-
-"""ppocrv6_rec.py — PP-OCRv6 识别 ONNX 推理包装。
+"""PP-OCRv6 ONNX 文本行识别与单字定位。
 
-设计目标：接口与 ``crnn.CRNNHandle`` 完全一致，可作 drop-in 替换。
-
-    handle = PPOcrV6RecHandle("models/ppocrv6_rec/small/inference.onnx")
-    result = handle.predict_rbg(crop_pil_rgb, bbox)
-    # result schema 与 CRNNHandle.predict_rbg 相同：
-    #   {'raw', 'line_pred', 'char_list', 'words'}
-    # char_list[i] = {'char', 'idx', 'line', 'bbox'}
-
-实现要点：
-- 预处理：高 48（v6 固定），宽按比例缩放不截断（截断到 320 会让长行严重变形），
-  归一化 (x/255 - 0.5)/0.5，通道顺序 BGR（v6 训练时是 BGR）。
-- 推理：ONNX Runtime CPU，输入 (1, 3, 48, W)，输出 (1, T, vocab)。
-- 后处理：CTC greedy decode（idx 0 = blank，重复 token 折叠）。
-  - 字典从 inference.yml 的 PostProcess.character_dict 读取。
-  - vocab = len(dict) + 1（blank），ONNX 输出维度可能多 1（unused），取 min。
-- 单字位置反推：按官方 ``return_word_box`` 的列坐标语义，
-  ``crop_x = (idx + 0.5) * crop_width / time_steps`` 生成参考位置。
-  stroke-ownership 按笔画归属估计四边、允许矩形自然重叠；
-  旧中点及投影策略仍保留用于对照。
-  复用 crnn.CRNN.reverse_rotate_crop_image 把 crop 坐标映射回原图。
-
-与 CRNN 的已知差异：
-1. v6 字典不含空格 ' '。CTC 输出的超字典 token 在 _decode_ctc 中还原为
-   空格并带 filler 标记，英文行文本与字框行为和 legacy CRNN（空格也生成
-   字框）保持一致。
-2. v6 medium/small 字典 18708 字（含 emoji/全角），tiny 6904 字（CJK+ASCII）。
-3. 预处理把 24px 高的行 resize 成 48px 会拉伸 2x，但实测中文/英文识别仍优于老 CRNN。
+输入 RGB 行图及原图四点框；内部按 BGR、高度 48 预处理。
+CTC 解码返回 raw、line_pred、char_list、words，字框回映到原图坐标。
+字典读取同级 inference.yml；超字典 token 作为词间空格并保留字框。
+单字位置由 CTC 时间列估计，再按所选策略细化。
 """
 
 import os
@@ -40,8 +17,8 @@ import onnxruntime as ort
 import yaml
 from PIL import Image
 
-# 复用 CRNN 的坐标反算 + 排序工具，保证字框几何与现有 pipeline 一致。
-from crnn.CRNN import reverse_rotate_crop_image, order_points
+# OCR 共用坐标回映和点序。
+from ocr.geometry import reverse_rotate_crop_image, order_points
 from .stroke_ownership import stroke_owned_boxes
 from .char_boxes import (
     independent_stroke_boxes,
@@ -56,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 # v6 预处理常量。
-IMG_H = 48                  # v6 固定高（CRNN 是 32）
+IMG_H = 48                  # v6 固定高度
 MAX_W_DEFAULT = 3200        # 推理时不截断到训练上限 320，按真实比例算（实测必须如此）
 
 
@@ -74,7 +51,7 @@ def _build_session(model_path: str) -> ort.InferenceSession:
 
 
 class PPOcrV6RecHandle:
-    """PP-OCRv6 识别模型包装，接口对齐 CRNNHandle。
+    """PP-OCRv6 文本行识别模型包装。
 
     参数：
         model_path: inference.onnx 路径（同级应有 inference.yml）
@@ -141,13 +118,13 @@ class PPOcrV6RecHandle:
 
         优化（实测 1.45→0.83 ms/行，加速 1.75×）：
           - 不再走 PIL.convert("RGB") + 双重通道反转 + copy，
-            直接 np.array(crop_im) 假定 RGB（CRNN 路径也是这么喂的），
+            直接 np.array(crop_im) 假定 RGB，
             用 [::-1] view 得到 BGR，不复制。
           - 归一化合并成单次乘加：x * (1/127.5) - 1.0
             数学上等价于 (x/255 - 0.5)/0.5 = (x - 127.5)/127.5。
           - transpose 后立刻 ascontiguousarray，让 ONNX 拿到连续内存。
         """
-        # PIL → ndarray；通道顺序：crop_im 是 RGB（由 cutbatch.crnnRecWithBox
+        # PIL → ndarray；通道顺序：crop_im 是 RGB（由 ocr.pipeline.recognize_rows
         # 的 Image.fromarray(crop_bgr[:,:,::-1]) 构造而来），反转得 BGR。
         rgb = np.asarray(crop_im, dtype=np.uint8)
         if rgb.ndim != 3 or rgb.shape[2] != 3:
@@ -176,7 +153,7 @@ class PPOcrV6RecHandle:
     # ---- 推理 ----
 
     def predict_rbg(self, crop_im: Image.Image, bbox, *, defer_stroke_refinement=False) -> dict:
-        """单行识别 + 单字位置反推。与 CRNNHandle.predict_rbg 同 schema。"""
+        """单行识别与单字位置反推。"""
         tensor, scale, resized_w = self._preprocess(crop_im)
         preds = self.sess.run([self.output_name], {self.input_name: tensor})[0]
         return self._postprocess(preds, scale, resized_w, crop_im, bbox, defer_stroke_refinement=defer_stroke_refinement)
@@ -190,7 +167,7 @@ class PPOcrV6RecHandle:
           - thread=4 + 真 batch 在合成固定宽度输入下能加速 1.5×，
             但真实多宽度混合场景下与逐行相比波动重叠，收益不稳定。
 
-        因此当前实现仍是逐行推理，与 CRNNHandle.predict_rbg_batch 行为一致。
+        因此当前实现按输入顺序逐行推理。
         未来若要重新启用真批量，需先解决 pad 区对 CTC 解码的干扰
         （例如用复制边缘像素代替 0 填充，或按真实宽度切片只取有效 T）。
         """
@@ -222,8 +199,7 @@ class PPOcrV6RecHandle:
             is_filler = not (0 < idx < self.decode_limit)
             if is_filler:
                 # v6 字典不含空格：超字典 token 是 CTC 对词间空隙的输出。
-                # 还原为空格并保留字框，与 legacy CRNN（字典含空格、也生成
-                # 空格框）行为一致；相邻多个空隙折叠为一个，避免出现双空格。
+                # 还原为空格并保留字框，相邻多个空隙折叠为一个。
                 if chars and chars[-1] == " ":
                     last = idx
                     continue
@@ -245,7 +221,7 @@ class PPOcrV6RecHandle:
 
     def _postprocess(self, preds: np.ndarray, scale: float, resized_w: int,
                      crop_im: Image.Image, bbox, *, defer_stroke_refinement=False) -> dict:
-        """CTC 解码 + 单字坐标还原。与 CRNNHandle._postprocess 输出 schema 对齐。"""
+        """CTC 解码与原图单字坐标还原。"""
         line_pred, char_list = self._decode_ctc(preds)
         raw = line_pred   # v6 没有 raw 概念，用 line_pred 占位以保持 schema
 
@@ -321,7 +297,7 @@ class PPOcrV6RecHandle:
         char_list = retained_chars
         line_pred = "".join(item["char"] for item in char_list)
 
-        # words 分组：与 CRNN._postprocess 同样的切分规则（中文/英文符号分组）
+        # words 按中文字符、英文和符号分组。
         import re
         words = []
 

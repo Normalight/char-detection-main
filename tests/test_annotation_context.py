@@ -9,8 +9,8 @@ from unittest import mock
 import numpy as np
 from PIL import Image
 
-from annotator_core import AnnotatorCore
-from storage_utils import (
+from annotation.controller import AnnotatorCore
+from utils.storage import (
     ANNOTATION_SCHEMA_VERSION,
     annotation_context_matches,
     get_json_path_for_item,
@@ -153,7 +153,7 @@ class AnnotationContextChoiceTests(unittest.TestCase):
         core = self._core()
         core._msg_save_discard_cancel = mock.MagicMock(return_value="save")
         with mock.patch(
-            "annotator_core.load_item_annotation_record_if_exists",
+            "annotation.controller.load_item_annotation_record_if_exists",
             return_value=self._legacy_record(),
         ):
             self.assertTrue(_apply_in_memory(core))
@@ -169,7 +169,7 @@ class AnnotationContextChoiceTests(unittest.TestCase):
         record["schema_version"] = ANNOTATION_SCHEMA_VERSION
         record["annotation_context"] = _context(level="char")
         with mock.patch(
-            "annotator_core.load_item_annotation_record_if_exists",
+            "annotation.controller.load_item_annotation_record_if_exists",
             return_value=record,
         ):
             self.assertTrue(_apply_in_memory(core))
@@ -184,7 +184,7 @@ class AnnotationContextChoiceTests(unittest.TestCase):
         )
         core._start_ocr_prefetch = mock.MagicMock()
         with mock.patch(
-            "annotator_core.load_item_annotation_record_if_exists",
+            "annotation.controller.load_item_annotation_record_if_exists",
             return_value=self._legacy_record(),
         ):
             self.assertTrue(_apply_in_memory(core))
@@ -198,7 +198,7 @@ class AnnotationContextChoiceTests(unittest.TestCase):
             return_value="cancel"
         )
         with mock.patch(
-            "annotator_core.load_item_annotation_record_if_exists",
+            "annotation.controller.load_item_annotation_record_if_exists",
             return_value=self._legacy_record(),
         ):
             self.assertFalse(_apply_in_memory(core))
@@ -211,7 +211,7 @@ if __name__ == "__main__":
 
 
 def _apply_in_memory(core):
-    import annotator_core
+    import annotation.controller as annotator_core
     pil = core._load_base_pil_for_item(core.items[core.current_item_index])
     record = annotator_core.load_item_annotation_record_if_exists(core.output_dir, core.items[core.current_item_index], target_size_wh=pil.size)
     return core._apply_loaded_item(pil, np.zeros((pil.height,pil.width,3), np.uint8), record)

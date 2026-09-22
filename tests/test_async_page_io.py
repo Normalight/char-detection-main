@@ -7,10 +7,8 @@ import pytest
 from PIL import Image
 from PySide6.QtCore import QThread, QTimer
 from PySide6.QtWidgets import QApplication
-from annotator_core import AnnotatorCore
-import worker
-
-
+from annotation.controller import AnnotatorCore
+import annotation.workers as worker
 @pytest.fixture(scope='module')
 def qt():
     app=QApplication.instance() or QApplication([])
@@ -116,7 +114,7 @@ def test_real_save_and_next_preserves_pixels_and_embeds_thumbnails_without_temp_
     import zipfile
     import cv2
     from PySide6.QtCore import QEventLoop
-    from storage_utils import get_rotate_crop_image
+    from utils.storage import get_rotate_crop_image
     core=core_pages(tmp_path)
     core.base_image_bgr=np.arange(48*64*3,dtype=np.uint8).reshape(48,64,3)
     expected=get_rotate_crop_image(core.base_image_bgr,core.boxes[0])

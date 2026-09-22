@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-storage_utils.py
+utils/storage.py
 
 负责：
 1. 根据图片/PDF页面 item 计算输出目录与 JSON 路径；
@@ -9,11 +9,13 @@ storage_utils.py
 4. 在批量保存时，如果 item 中没有 boxes，则从 JSON 或 OCR 结果兜底生成 boxes。
 
 本版重点修复：
-- 保存切片时不再调用 utils.get_rotate_crop_image 中的自动旋转逻辑，避免竖排中文/碑文字框被旋转成横向扁图；
+- 保存切片时不再调用 ocr.geometry.get_rotate_crop_image 中的自动旋转逻辑，避免竖排中文/碑文字框被旋转成横向扁图；
 - boxes 始终位于 base_image_bgr 坐标系，即原始图片 / PDF 渲染页的坐标系；
 - 画布显示缩放不写入 boxes，也不影响最终切片清晰度；
 - 保存前清理旧 crop 文件，避免删除框后旧切片残留影响 Excel。
 """
+
+from utils.paths import get_output_dir_for_item, get_json_candidates as _legacy_json_candidates
 
 import glob
 import json
@@ -134,7 +136,7 @@ def get_rotate_crop_image(img, points):
     """
     根据四点框裁剪图像，保留原始文字方向。
 
-    注意：这里刻意不调用 utils.py 中的 get_rotate_crop_image，因为旧函数在
+    注意：这里刻意不调用 ocr/geometry.py 中的 get_rotate_crop_image，因为旧函数在
     dst_img_height / dst_img_width >= 1.5 时会执行 np.rot90(dst_img)，这会把很多
     竖排中文单字/碑文切片旋转成横向扁图，导致 Excel 中显示为一条扁长图片。
     """
@@ -172,24 +174,6 @@ def get_rotate_crop_image(img, points):
         return None
 
 
-def get_output_dir_for_item(output_root_dir: str, item: dict) -> Tuple[str, str]:
-    """
-    返回当前 item 的输出文件夹与文件名前缀。
-
-    image:      <output>/<image_stem>/, prefix=<image_stem>
-    pdf page:   <output>/<pdf_stem>/page_001/, prefix=<pdf_stem>_p001
-    """
-    if item.get("type") == "image":
-        stem = os.path.splitext(os.path.basename(item.get("source_path", "image")))[0]
-        return os.path.join(output_root_dir, stem), stem
-
-    pdf_stem = os.path.splitext(os.path.basename(item.get("source_path", "pdf")))[0]
-    page_index = int(item.get("page_index") or 0)
-    page_folder = f"page_{page_index + 1:03d}"
-    prefix = f"{pdf_stem}_p{page_index + 1:03d}"
-    return os.path.join(output_root_dir, pdf_stem, page_folder), prefix
-
-
 def _json_path(output_root_dir: str, item: dict) -> str:
     folder, prefix = get_output_dir_for_item(output_root_dir, item)
     return os.path.join(folder, f"{prefix}.json")
@@ -198,18 +182,6 @@ def _json_path(output_root_dir: str, item: dict) -> str:
 def get_json_path_for_item(output_root_dir: str, item: dict) -> str:
     """公开 JSON 路径，供其他模块调用。"""
     return _json_path(output_root_dir, item)
-
-
-def _legacy_json_candidates(output_root_dir: str, item: dict) -> List[str]:
-    """兼容旧版本可能生成的 page_001.json 等路径。"""
-    folder, prefix = get_output_dir_for_item(output_root_dir, item)
-    candidates = [os.path.join(folder, f"{prefix}.json"), os.path.join(folder, f"{os.path.basename(folder)}.json")]
-    out, seen = [], set()
-    for p in candidates:
-        if p not in seen:
-            out.append(p)
-            seen.add(p)
-    return out
 
 
 def save_item_json(

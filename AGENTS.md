@@ -1,195 +1,106 @@
-# AGENTS.md
+# 字符检测项目上下文
 
-本文件给 AI 编码助手（和新人）提供本项目的工作地图。先读这一份，再动代码。
+## 项目职责
 
-## 项目是什么
+图片/PDF 的中文字符检测、交互式标注与原图切片导出工具。当前默认流程：PP-OCRv6-small 检测文本行 → PP-OCRv6-small 识别 → CTC 单字定位 → stroke-ownership 笔画归属细化 → 人工标注 → PNG、JSON、Excel 导出。导出的单字切片可供独立的字形归并项目使用。
 
-基于 OCR 的**中文字符 / 单字检测与交互式标注工具**。
+Python 推荐 3.11，界面使用 PySide6 / QPainter，推理使用 onnxruntime，图像处理使用 numpy / OpenCV / Pillow，Excel 使用 xlsxwriter。PDF 优先通过 PyMuPDF 渲染，pdf2image 回退需要系统 Poppler。
 
-- 输入：图片（PNG/JPG/...）或 PDF（多页）
-- 流程：DBNet 检测文本框 → CRNN 识别 → 按 char / word / line 三种粒度切分
-- 输出：每个字的切片 PNG + 标注 JSON + 汇总 Excel（每页一个 Sheet）
-- UI：PySide6（Qt）侧栏 + QPainter 画布（创建 / 旋转 / 导航 / 删除框、快捷键操作）
-- 推理后端：onnxruntime，模型在 `models/dbnet.onnx` 与 `models/crnn_lite_lstm.onnx`
+## 源码地图
 
-> 键盘走 Qt `QShortcut`（直接吃 `WM_KEYDOWN` 的虚拟键码，不经 TranslateMessage / IME），
-> 因此**中文输入法激活状态下快捷键也照常触发**。这是项目从 Tk+cv2 迁到 Qt 的主要动机。
+| 文件 | 职责 |
+| --- | --- |
+| `app.py` | 桌面启动入口 |
+| `ui/window.py` | 主窗口、参数、工具栏、进度、登录和更新接入、关闭事件 |
+| `annotation/controller.py` | 标注业务、坐标、编辑状态、快捷键、页面和异步任务编排 |
+| `ui/canvas.py` | QPainter 绘制、鼠标/滚轮事件、图像缓存 |
+| `annotation/workers.py` | 模型加载、页面加载、当前页 OCR、批量预取、当前页及批量保存 |
+| `ocr/pipeline.py` | `OcrHandle` 推理编排与结果生成 |
+| `ocr/image.py` | OCR 限尺寸副本、图像解码优化与坐标回映 |
+| `ocr/detector.py`、`recognizer.py` | ONNX 模型、配套 YAML、检测与识别适配 |
+| `ocr/char_boxes.py`、`stroke_ownership.py` | CTC 定位、单字几何和笔画归属 |
+| `ocr/page_layout.py` | 整页竖排几何与字距估计 |
+| `utils/paths.py` | 标注与 Excel 共用的输出目录、前缀、兼容 JSON 查找 |
+| `utils/storage.py` | JSON、原图裁剪、切片持久化、保存兜底 OCR |
+| `utils/excel.py` | 版面排列、缩略图、Excel 导出 |
+| `utils/pdf.py`、`ocr/geometry.py` | PDF 页数/渲染、OCR 裁剪与坐标回映 |
+| `config.py` | 模型、单字框策略、推理尺寸及资源定位 |
+| `app.spec`、`packaging/` | Cython 保护、PyInstaller 打包、自检和发布 |
 
-## 技术栈
+默认 `det_model = rec_model = "v6-small"`、`char_box_strategy = "stroke-ownership"`。模型与配套字典/参数文件位于 `models/ppocrv6/small/` 和 `models/ppocrv6_rec/small/`，每处均需 `inference.onnx`、`inference.yml`；下载方法见 README。权重不进 Git。修改配置时核对模型下载、打包收集与已有标注的上下文兼容。
 
-| 维度    | 选型                                            |
-| ------- | ----------------------------------------------- |
-| 语言    | Python 3.10 / 3.11（旧版依赖在 3.10+ 装不上）   |
-| 推理    | onnxruntime + numpy + opencv-python             |
-| 几何    | Shapely + pyclipper（DBNet 后处理）             |
-| GUI     | **PySide6（Qt）** —— 侧栏 QMainWindow + 画布 QWidget（QPainter）|
-| PDF     | PyMuPDF → pdf2image → Pillow 三级 fallback      |
-| Excel   | xlsxwriter                                      |
-| 打包    | PyInstaller onedir（`app.spec`）                |
+## 坐标与单字框
 
-## 架构总览
+- `base_image_bgr` 是原图或 PDF 渲染页，boxes、JSON 和 PNG 切片始终使用此坐标系。
+- `view_image_bgr`、`view_scale`、`viewport_offset`、`draw_origin` 只用于显示；缩放和平移不改变 boxes 或导出清晰度。
+- `image_scale` 作用于 OCR 副本；统一经过 `ocr/image.py` 的尺寸限制，`ocr_max_side` 默认 2560，非正值回退到 2560。推理结果按实际宽高比例回映原图。
+- 单字框跟随可信墨迹，可自然重叠。存在可靠笔画而未识别出文字时保留无文本框，不虚构字标签；缺少可信墨迹时保留定位估计，不能声称得到真实轮廓。
+- 裁剪使用 `storage_utils.get_rotate_crop_image`，保持竖排切片方向。
+- 修改 boxes 或显示状态后调用 `_refresh_canvas()`，绘制集中在画布。图像缓存使用内容/版本指纹，不使用对象地址作为内容标识。
 
-```
-app.py  ──QMainWindow、侧栏、工具栏、进度对话框──▶  annotator_core.py  (业务核心 + 交互状态机)
-              │                                       │
-              │                                       │ 持有 + 触发重绘
-              ▼                                       ▼
-        canvas_widget.py  ◀── 鼠标/滚轮事件回传 core._on_mouse_* / _on_wheel
-        AnnotatorCanvas（QPainter 绘制）
-                                                       │
-                                                       │ 长任务委派
-                                                       ▼
-                                                worker.py（QThread）
-                                                ModelLoadWorker / PageLoadWorker / OcrPrefetchWorker / SaveCurrentWorker / SaveAllWorker
-                                                       │
-            ┌──────────────────────────────────────────┴──────────────────────────────┐
-            ▼                                                                          ▼
-      cutbatch.py / dbnet/ + crnn/                                       storage_utils.py / excel_utils.py
-      (ONNX 推理，在 worker 线程)                                         boxes/JSON/切片/Excel 落盘
-```
+## 异步生命周期与保存
 
-**主线程绝不跑长任务**：模型加载、OCR 预标注、批量保存全部走 worker.py 的 QThread，
-结果通过 pyqtSignal 回主线程。任何在主线程直接调 onnxruntime / 大图 IO / xlsxwriter
-的改动都要拒绝。
+- 模型加载、图像解码、PDF 渲染、OCR、切片和 Excel 导出均在 `annotation/workers.py` 的 QThread 执行，通过 `Signal` 回主线程；worker 不操作 GUI。
+- 页面流程：`ModelLoadWorker` → `_load_item` 启动 `PageLoadWorker` → `_apply_loaded_item` → 按需启动 `OcrPrefetchWorker`。加载成功前不提前改写当前页索引。
+- 空闲时 `OcrBatchPrefetchWorker` 预取未访问且无 JSON 的页面；前台 OCR 与批量保存可取消预取。结果按请求号、页面标识、编辑版本和会话代数校验，不能覆盖后续编辑或另一会话。
+- 重新开始时保留退役推理线程的引用直到其结束，丢弃过期结果；关闭窗口仍检查所有线程，保存任务需安全收尾。
+- `save_current` 启动 `SaveCurrentWorker`，逐张原图裁剪并暂存，保留整页事务回滚。保存成功且编辑版本未变化才继续目标页导航，失败或取消留在当前页。
+- 翻页前对编辑过或存在未落盘框的页面处理保存询问。保存期间继续编辑要保留新版本并取消自动翻页。
+- `save_all` 只启动 `SaveAllWorker` 并立即返回；退出由 `quit_app`、`_pending_quit` 和保存结束回调协调。
+- 未访问页批量保存优先内存 boxes，再读 JSON，最后才回退 OCR。重存时清理对应旧切片，防止删框后残留污染结果。
+- 保存时复用有尺寸上限的 Excel 缩略图，只缓存缩略图，避免同时保存全部原图切片；Excel 使用内存打包。
 
-关键约束（动代码前必读）：
+## GUI 与工程约定
 
-- **坐标解耦**：`base_image_bgr` 是原图处理 / 保存坐标，`view_image_bgr` 仅用于显示。
-  boxes 永远存 `base_image_bgr` 坐标系，界面放大缩小**不**改写 boxes、**不**影响切片清晰度。
-  详见 `annotator_core.py:1` 文件头注释。
-- **画布刷新**：业务代码改完 boxes / view_scale 后调 `self._refresh_canvas()`（= `canvas.update()`），
-  Qt 会在下一帧调 `paintEvent`。**不要**直接在业务里画——绘制全部集中在 `canvas_widget._draw_boxes`。
-- **异步加载流程**：`app._start` → `core.start` → `ModelLoadWorker` 加载模型 →
-  `_on_model_ready` → `_load_item`（图片 + JSON 立即显示）→ 若无 boxes，`OcrPrefetchWorker`
-  后台跑预标注 → `_on_ocr_done` 合并。切页同理。**`_load_item` 主线程不阻塞**。
-- **空闲预取（无感识别）**：当前页就绪后，`OcrBatchPrefetchWorker` 在后台按顺序
-  预标注未访问且无 JSON 的页面（worker 自己加载图片、逐页 `page_ocr_done` 回传、
-  单页失败跳过不弹窗），切页时结果已在内存、直接显示。当前页 OCR 与批量保存会
-  **抢占取消**预取（`_cancel_background_prefetch`）；调度入口
-  `_maybe_start_background_prefetch`，结果复用 `_on_ocr_done` 的
-  request_id / item_identity / edit_revision 保护。翻页保存询问与旧版一致：
-  覆盖**编辑过（dirty）或存在未落盘框**（含纯 OCR / 预取结果）的页面；
-  OCR 未返回、画布为空的页不打扰，退出仍走整体保存询问。
-- **`save_all` 立即返回**：纯启动 `SaveAllWorker`，不等待。退出流程由 `quit_app` 置
-  `_pending_quit`，`_on_save_all_finished` 检测到后调 `_really_quit`。`app.closeEvent`
-  监听 worker 是否在跑，强退前会弹确认 + cancel。
-- **快捷键**：所有字母 / +/-/Esc/Delete 在 `annotator_core.register_hotkeys` 的 bindings 表里登记，
-  并对应 `QShortcut(QKeySequence("X"), main_window)`。大小写各注册一次（`"C"` 和 `"Shift+C"`）。
-  新增快捷键时同步改这张表。
-- **焦点与 IME**：QLineEdit / QComboBox 获焦时会吞字母快捷键（Qt 把它们当文本输入），
-  约定**回车 / 选择后自动 `canvas.setFocus()`**（见 `_make_line_edit` / level_combo 的信号）。
-  画布 `focusInEvent` 调 `grabKeyboard` 作为双保险。
-- **QImage 缓存指纹**：`canvas_widget._fingerprint` 用 `(shape, dtype, _view_version, 头部字节 hash)`，
-  **不能用 id()**——CPython 地址会被复用，缓存误命中会画错图。
-- **切片裁剪**走 `storage_utils.get_rotate_crop_image`，**不要**用 `utils.get_rotate_crop_image`——
-  后者会对竖排切片 `np.rot90`，把碑文 / 竖排中文压成横向扁图。
-- PDF 渲染三级 fallback，任一级失败只 `logger.warning` 后落下一级；全失败才抛 `RuntimeError`。
+快捷键统一登记在 `annotation.controller.AnnotatorCore.register_hotkeys`，编辑控件提交后恢复画布焦点。修改快捷键时检查中文输入法、文本输入焦点、授权锁定和会话切换状态。
 
-## 模块清单
+`annotation/controller.py` 的 Qt 导入保持按需加载；日志使用 `logging.getLogger(__name__)`。业务错误抛异常交由调用方处理，避免在模块导入阶段退出进程。PDF 页数通过 `get_pdf_page_count` 获取，参数沿用界面现有上下限校验。
 
-### 主线（可改、被 import）
+## 开发与验证
 
-| 文件                     | 作用                                                         |
-| ------------------------ | ------------------------------------------------------------ |
-| `app.py`                 | PySide6 `QMainWindow`：侧栏（QSplitter + QScrollArea）、参数表单、工具栏、进度对话框、closeEvent |
-| `canvas_widget.py`       | `AnnotatorCanvas(QWidget)`：QPainter 绘制 + 鼠标/滚轮事件路由 + QImage 内容指纹缓存 |
-| `worker.py`              | `ModelLoadWorker` / `PageLoadWorker` / `OcrPrefetchWorker` / `SaveCurrentWorker` / `SaveAllWorker`（QThread + pyqtSignal），主线程不阻塞的关键 |
-| `annotator_core.py`      | `AnnotatorCore`：业务核心（坐标系、boxes、保存）+ Qt 鼠标分发 + QShortcut + 异步任务编排 |
-| `cutbatch.py`            | `OcrHandle`：封装 DBNet+CRNN 调用，产出 `{bbox,result,score}` |
-| `storage_utils.py`       | 输出目录、JSON 持久化、切片裁剪、OCR 兜底                    |
-| `excel_utils.py`         | 横 / 竖排对齐、防重叠、缩略图控体积                          |
-| `pdf_utils.py`           | PDF 页渲染 + 页数读取（三级 fallback）                       |
-| `utils.py`               | `validate_and_prepare_polygon_points` 等几何小工具            |
-| `config.py`              | 模型路径、dbnet/crnn/angle 参数；适配 PyInstaller `_MEIPASS` |
+在本项目目录的 Python 环境中执行：
 
-### 推理引擎（外部代码，慎改）
-
-| 文件                  | 作用                                          |
-| --------------------- | --------------------------------------------- |
-| `dbnet/dbnet_infer.py`| DBNet 文本检测，`process(img, short_size)`    |
-| `dbnet/decode.py`     | DBNet 后处理（pyclipper + Shapely）           |
-| `crnn/CRNN.py`        | CRNN 识别，`predict_rbg` 返回 char/word/line  |
-| `crnn/util.py`        | CTC 解码                                      |
-| `crnn/keys.py`        | 字符表 `alphabetChinese`                      |
-
-参考自 [chineseocr_lite](https://github.com/DayBreak-u/chineseocr_lite)。
-
-### 清理后的仓库
-
-旧版单体入口、原型、备份、mayavi 演示和无关产物已删除。
-仅保留当前 GUI、推理后端、打包和应用测试。MegaHan、历史 bench、命令行演示及配套素材已删除；旧实验测试在 `tests/archive/`，不参与收集。
-
-## 常用命令
-
-```bash
-# 安装依赖（PDF 功能还需系统装 poppler：brew install poppler）
-pip install -r requirements.txt
-
-# 主入口：图形化标注工具（推荐）
+```sh
+python -m pip install -r requirements-dev.txt
 python app.py
-
-# 单元测试（只测纯逻辑，不依赖 onnxruntime / QApplication 真实例化）
-python -m pytest tests/ -q
-
-# 打包 onedir（输出 dist/interactive_annotator/）
-pyinstaller app.spec
+QT_QPA_PLATFORM=offscreen python -m pytest tests -q
 ```
 
-> 当前环境若未装 `onnxruntime`，`tests/test_annotator_core_coords.py`、
-> `test_annotator_core_overlay.py` 会在 import 阶段失败——这是已知的依赖链问题
-> （`annotator_core → cutbatch → onnxruntime`），不是测试本身错。
-> `tests/test_canvas_widget.py` 和 `tests/test_worker.py` 只做静态源码检查，
-> 不触发该依赖链（其中 `test_worker.py` 还会**强制 worker 代码不碰 GUI**）。
+测试包括纯逻辑、静态结构和 Qt/异步回归，直接收集 `tests/` 中当前功能的测试。按改动选择验证：
 
-## 工程约定
+- 单字几何：stroke ownership、char boxes、page layout、vertical page regression，并查看固定图例的框与切片。
+- 坐标和导出：annotator core coords、OCR image/proxy、storage、Excel。
+- 任务与窗口：restart session、async page IO、worker lifecycle、background prefetch、exit state、desktop lifecycle。
+- 打包与发布：native protection、release assets、next version、public publish、GitCode publish，并执行构建自检。
 
-- **日志**：用 `logging.getLogger(__name__)`，不要 `print`、不要裸 `except: print(...)`。
-- **Qt 惰性导入**：`annotator_core.py` 顶层**不** import PySide6，相关 `from PySide6...`
-  都写在方法内（`register_hotkeys` / `_msg_box` / `_process_events` / `_start_*`）。这样纯逻辑方法
-  可在没有 Qt 的环境里单测。`app.py` / `canvas_widget.py` 顶层可自由 import Qt。
-- **主线程不跑长任务**（强约束）：模型加载、OCR、`save_all`、Excel 生成、PDF 渲染
-  全部必须走 `worker.py` 的 `QThread`。主线程里直接调 `OcrHandle.text_predict` /
-  `save_item_boxes_to_disk` / `build_excel_for_single_item` 会让 Qt 事件循环阻塞，
-  界面"未响应"。新增这类调用前先想清楚是同步还是异步。
-- **worker 不得碰 GUI**：`worker.py` 内禁止出现 `QPainter` / `QImage` / `QMessageBox` /
-  `.setText()` / `.update()` 等。结果只能通过 `pyqtSignal` 回主线程。
-  `tests/test_worker.py::WorkerStructureTests::test_ocr_worker_does_not_touch_gui` 会强制检查。
-- **错误**：模块顶层禁止 `exit()` / `sys.exit()`（会让 GUI 静默退出），改抛 `RuntimeError`，
-  见 `cutbatch.py:35`。
-- **保存流程**（批量保存未访问页时）：优先用内存 boxes → 回退 JSON → 再回退 OCR 重跑。
-  见 `storage_utils.extract_boxes_from_ocr_results`。
-- **清理旧切片**：保存前 `clear_existing_crops`，避免删框后旧切片残留污染 Excel。
-- **PDF 页数**：始终通过 `get_pdf_page_count` 取，不要硬编码。
-- **参数校验**：`app.py` 的 `_parse_int` / `_parse_float` 已带上下限，新参数沿用同套校验。
-- **新增快捷键**：在 `annotator_core.register_hotkeys` 的 bindings 表里加一行；
-  若涉及新字母，无需在别处登记（`QShortcut(QKeySequence("X"))` 直接覆盖大小写两种 Shift 状态，
-  因为表里同时给了 `"X"` 和 `"Shift+X"`）。
+## 认证、更新与分发
 
-## 仓库布局提醒
+`ui/window.py` 通过 `hanzi_auth` 登录并保护窗口，通过独立的 `hanzi_update.attach_updates` 接入更新。授权锁定后保留保存当前成果的入口；更新重启沿用 `quit_app` 的保存流程，拒绝退出时清除 `restart_requested`。
 
-`.gitignore` 已忽略以下生成物，**不要**提交：
+共享包从本项目 `vendor/` 安装，源码在相邻 `hanzi-auth/`、`hanzi-update/`。公共 `packaging/protection.py`、`release_info.py`、`publish_public.py` 的维护源为 `hanzi-auth/tools/desktop_packaging/`；改动后使用其 `sync_desktop.py` 同步，升级包时维护普通和平台 requirements 引用。
 
-- `output/` `interactive_output/` `data/` `outputs/` `docs/superpowers/` `ppt_assets/`（运行 / PPT 任务产物）
-- `*.xlsx` `*.xls`（标注结果）
-- `build/` `dist/` 打包产物（`app.spec` 和 `packaging/*.spec` 要提交）
-- `.idea/` `.vscode/` `.zcode/` `.superpowers/` `__pycache__/`（IDE / 工具元数据）
+Windows 使用 `build_windows.bat`；macOS 使用 `bash build_mac.sh`（默认 arm64）。保留 Cython 保护、模型收集、`build_info.json`、`--smoke-test` 和完整 onedir 分发。各平台在相应原生环境构建；发布入口见 `.github/workflows/`。
 
-## 坐标与缩放词汇表（避免混用）
+Mac arm64 的 `packaging/mac.spec` 通过 `minimal_opencv.py` 构建固定版本的图像处理模块，通过 `slimming.py` 裁剪已验证版本的 Qt/ONNX 依赖。变更需验证真实图片 OCR、图片编解码、PDF 和实际产物自检；对照开关及缓存说明见 README。
 
-| 术语              | 含义                                                         |
-| ----------------- | ------------------------------------------------------------ |
-| `base_image_bgr`  | 原始图片 / PDF 渲染页，boxes / 切片都基于它  |
-| `view_image_bgr`  | 仅显示用，`base * view_scale`                                |
-| `view_scale`      | 显示缩放，**不**写入 boxes、**不**影响切片清晰度             |
-| `image_scale`     | OCR 副本缩放，**不**进入 `base_image_bgr`，**不**改变原图与切片     |
-| `viewport_offset` | 画布在 view image 上的左上角（图像大于窗口时）               |
-| `draw_origin`     | 图像小于窗口时的居中偏移                                     |
-| `_view_version`   | view_image_bgr 版本号，`_rebuild_view_image` 自增；canvas 用它做 QImage 缓存指纹 |
+源码、测试、打包配置和必要分发依赖进入版本管理；用户图片、导出结果、模型、缓存及 build/dist 不作为源码提交。入口、默认行为、异步契约变化时同步本文件和 README。
 
-- OCR 使用最长边受 `config.ocr_max_side` 限制的独立副本，检测/识别/笔画细化完成后按实际宽高比例回映原图；切勿将副本用于保存。
-- 重新开始将旧推理 worker 标记为 retired，保留引用至线程结束，旧结果按请求号/会话代数丢弃；新会话只检查当前会话 worker。关闭窗口仍必须检查所有 worker，保存线程不得提前隔离。
+## 提交说明
 
-- `_load_item(target_index)` 只启动 `PageLoadWorker`，原图解码、PDF 渲染、JSON 读取和 RGB→BGR 都在 worker；`_apply_loaded_item` 只合并内存结果。页面加载期间不提前改写当前页索引。
-- `save_current` 只启动 `SaveCurrentWorker`；保存成功且编辑版本未变化才继续 `_navigation_target`，失败/取消留在当前页。切片逐张裁剪并暂存，仍保留整页事务回滚。
-- 所有 `OcrHandle` 推理统一经过 `ocr_image.py` 的限尺寸副本和实际宽高比例回映；`text_predict_file` 可用 JPEG 缩小解码。非正 `ocr_max_side` 回退 2560，不能放开超大图推理。
-- `SaveCurrentWorker` 在原图切片仍在内存时生成有上限的 Excel 缩略图，供 `build_excel_for_single_item(cached_thumbnails=...)` 复用；仅缓存缩略图，不缓存全部原图切片。Excel 内存打包，减少 Windows 临时文件 IO。
+每次提交必须根据本次实际 diff 编写明确的 commit message。标题使用 `类型(范围): 中文改动摘要`，类型按实际选择 `feat`、`fix`、`refactor`、`docs`、`test`、`build` 或 `chore`；范围填写实际模块。避免只有“更新”“修复问题”或文件列表的标题。
+
+涉及行为变化、多个模块或共享依赖时，正文说明改了什么、为什么改、用户或调用方受到什么影响，以及执行过的验证和结果；未执行的验证及原因如实注明。仅记录该提交包含的内容，不把已有但未纳入提交的工作或计划写成已完成。跨仓库改动分别编写对应提交说明。
+
+## 客户端更新记录
+
+每次客户端发版前，必须在本仓库编写 `RELEASE_NOTES_v<版本号>.md`，随该版代码提交；按需包含新增功能、体验改进、问题修复，以及兼容性、升级步骤或已知限制。使用面向用户的中文描述实际变化，不以 commit 列表或笼统的“优化体验”代替。
+
+更新记录的版本必须与安装包 `build_info.json`、客户端版本和发布标签中的产品版本一致。只记录本版已完成的变化；共享认证、更新包或打包变化若影响用户，也应在本客户端记录。
+
+发布 GitHub / GitCode Release 时使用该版本更新记录作为正文；公开分发仓库的产品前缀标签沿用相同产品版本和说明。发版前核对实际 Release 正文及客户端可见更新说明，确保分发/镜像过程保留记录；工作流自动生成的 notes 不能代替人工编写的版本说明。
+
+## 结构维护
+
+Python 文件使用 `snake_case.py`，按职责命名；外部入口、软件标识、模型目录和导出格式保持稳定。开发测试依赖放在 `requirements-dev.txt`，平台共同构建依赖放在 `packaging/requirements-build.txt`，平台文件只写包含与差异。`packaging/` 中的公共脚本从认证项目 `tools/desktop_packaging/` 同步，不在副本上独立修改。在认证项目运行 `python tools/sync_desktop.py --check` 检查漂移。源码地图见 README。
+
+源码按职责收敛到包，根目录仅保留启动入口和配置。公共工具位于 `utils/`（如适用），业务包不使用模型历史名称。打包保护自动发现根目录下含 `__init__.py` 的源码包，并要求实际 `ui/window.py` 进入保护清单。测试和打包自检直接引用对应包。

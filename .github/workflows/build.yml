@@ -83,10 +83,6 @@ jobs:
           - target: windows-x64
             runner: windows-2022
             python_arch: x64
-          - target: macos-x86_64
-            runner: macos-15-intel
-            python_arch: x64
-            mac_arch: x86_64
           - target: macos-arm64
             runner: macos-15
             python_arch: arm64
@@ -134,7 +130,7 @@ jobs:
         env:
           MAC_TARGET: ${{ matrix.mac_arch }}
         run: |
-          PYTHON_ARM64="$(command -v python)" PYTHON_X86_64="$(command -v python)" bash build_mac.sh "$MAC_TARGET"
+          PYTHON_ARM64="$(command -v python)" bash build_mac.sh "$MAC_TARGET"
       - name: Test (macOS)
         if: runner.os == 'macOS'
         shell: bash

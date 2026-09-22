@@ -1,8 +1,6 @@
 import numpy as np
 
-import cutbatch
-
-
+import ocr.pipeline as ocr_pipeline
 def test_recognition_failure_is_isolated_to_one_text_row(monkeypatch):
     class PartiallyFailingRecognizer:
         def predict_rbg_batch(self, _items):
@@ -17,10 +15,10 @@ def test_recognition_failure_is_isolated_to_one_text_row(monkeypatch):
                 "words": [],
             }
 
-    handle = cutbatch.OcrHandle.__new__(cutbatch.OcrHandle)
-    handle.crnn_handle = PartiallyFailingRecognizer()
+    handle = ocr_pipeline.OcrHandle.__new__(ocr_pipeline.OcrHandle)
+    handle.recognizer = PartiallyFailingRecognizer()
     monkeypatch.setattr(
-        cutbatch,
+        ocr_pipeline,
         "get_rotate_crop_image",
         lambda _image, _box: np.full((12, 20, 3), 255, dtype=np.uint8),
     )
@@ -32,7 +30,7 @@ def test_recognition_failure_is_isolated_to_one_text_row(monkeypatch):
         dtype=np.float32,
     )
 
-    results = handle.crnnRecWithBox(
+    results = handle.recognize_rows(
         np.full((40, 40, 3), 255, dtype=np.uint8),
         boxes,
         np.asarray([0.9, 0.8], dtype=np.float32),
