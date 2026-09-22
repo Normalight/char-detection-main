@@ -186,6 +186,47 @@ class OcrPrefetchPayloadTests(unittest.TestCase):
 
 
 class SaveAllWorkerOutputTests(unittest.TestCase):
+    def test_excel_failure_preserves_dirty_state_and_blocks_exit_until_retry(self):
+        from annotation.controller import AnnotatorCore
+        import copy
+
+        core = AnnotatorCore()
+        core.items = [{'type': 'image', 'source_path': '/input/page.png',
+                       'visited': True, 'dirty': True, 'ever_saved': False,
+                       'boxes': [np.asarray([[0, 0], [9, 0], [9, 9], [0, 9]], dtype=np.float32)]}]
+        core.current_item_index = 0
+        core.set_status = mock.Mock()
+        core._begin_worker_shutdown = mock.Mock()
+        core._maybe_start_background_prefetch = mock.Mock()
+        for failing in (True, False):
+            save_worker = SaveAllWorker('/output', copy.deepcopy(core.items), None,
+                                        960, 'char', 200, None, 1.0)
+            core._save_worker = save_worker
+            core._quit_state = core.QUIT_SAVING
+            core._pending_quit = True
+            save_worker.page_saved.connect(core._on_save_page_saved)
+            save_worker.finished_ok.connect(lambda: core._on_save_all_finished(save_worker))
+            save_worker.stopped.connect(lambda message: core._on_save_all_stopped(save_worker, message))
+            success = QSignalSpy(save_worker.finished_ok)
+            stopped = QSignalSpy(save_worker.stopped)
+            with (
+                mock.patch('annotation.workers._load_item_pil', return_value=Image.new('RGB', (10, 10))),
+                mock.patch('annotation.workers.save_item_boxes_to_disk', return_value=1),
+                mock.patch('annotation.workers.build_excel_for_single_item',
+                           side_effect=PermissionError('workbook locked') if failing else None),
+            ):
+                save_worker.run()
+            core._on_save_worker_thread_finished(save_worker)
+            self.assertEqual(success.count(), int(not failing))
+            self.assertEqual(stopped.count(), int(failing))
+            self.assertEqual(core.items[0]['dirty'], failing)
+            if failing:
+                self.assertEqual(core._quit_state, core.QUIT_IDLE)
+                self.assertFalse(core._pending_quit)
+                core._begin_worker_shutdown.assert_not_called()
+            else:
+                core._begin_worker_shutdown.assert_called_once()
+
     def test_char_save_finishes_without_grouping_call(self):
         item = {
             "type": "image",

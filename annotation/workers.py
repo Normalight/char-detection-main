@@ -357,14 +357,11 @@ class SaveAllWorker(_BaseWorker):
                         "切片写入不完整："
                         f"{saved_crop_count} / {expected_crop_count}"
                     )
+                # Excel 在 worker 线程里跑也安全（纯 IO + xlsxwriter）
+                build_excel_for_single_item(self._output_dir, it)
                 it["ever_saved"] = True
                 it["dirty"] = False
                 it["nav_scale"] = 1.0
-                # Excel 在 worker 线程里跑也安全（纯 IO + xlsxwriter）
-                try:
-                    build_excel_for_single_item(self._output_dir, it)
-                except Exception as ee:
-                    logger.warning("[Excel] %s：%s", name, ee)
                 self.page_saved.emit(copy.deepcopy(it))
                 saved += 1
             except Exception as e:

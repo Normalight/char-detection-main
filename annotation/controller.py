@@ -1255,6 +1255,8 @@ class AnnotatorCore:
                     "view_scale": None,
                     "nav_scale": 1.0,
                 })
+        from utils.paths import assign_image_output_names
+        assign_image_output_names(items)
         return items
 
     def _load_base_pil_for_item(self, item) -> Image.Image:
