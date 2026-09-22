@@ -85,6 +85,8 @@ a.binaries = [
 ]
 
 protection['apply'](a, code_root)
+windows_bundle = runpy.run_path(str(Path(project_dir) / 'packaging/windows_bundle.py'))
+windows_bundle['apply'](a, Path(project_dir) / 'build/windows-bundle-report.json')
 pyz = PYZ(a.pure)
 
 # 生成 onedir 可执行。依赖文件由 COLLECT 放进同名目录，启动时无需先把
