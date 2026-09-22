@@ -77,7 +77,7 @@ jobs:
           $process = Start-Process $installer.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/SP-', '/NORESTART', '/HANZITEST=1', ('/DIR="' + $install + '"') -Wait -PassThru
           if ($process.ExitCode -ne 0) { exit $process.ExitCode }
           $exe = Join-Path $install 'interactive_annotator.exe'
-          & $exe --smoke-test
+          python -c "import subprocess,sys; subprocess.run([sys.argv[1], '--smoke-test'], check=True, timeout=120)" $exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build macOS installer
         if: runner.os == 'macOS'

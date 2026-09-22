@@ -1,0 +1,46 @@
+name: Verify built Windows installer
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        required: true
+      run_id:
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - name: Validate source build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          $source = gh api "repos/$env:GH_REPO/actions/runs/$env:RUN_ID" | ConvertFrom-Json
+          if ($source.conclusion -ne 'success' -or $source.path -ne '.github/workflows/native-build.yml') { throw 'Source native build not successful' }
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          name: native-windows-x64-${{ inputs.version }}
+          path: installer
+      - name: Install and wait for packaged application self-test
+        run: |
+          $installer = Get-ChildItem installer/*-setup.exe | Select-Object -First 1
+          $install = Join-Path $env:RUNNER_TEMP 'verified-native-app'
+          $process = Start-Process $installer.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/SP-', '/NORESTART', '/HANZITEST=1', ('/DIR="' + $install + '"') -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Installer failed' }
+          $exe = Join-Path $install 'interactive_annotator.exe'
+          python -c "import subprocess,sys; subprocess.run([sys.argv[1], '--smoke-test'], check=True, timeout=120)" $exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
