@@ -32,6 +32,7 @@ Python 推荐 3.11，界面使用 PySide6 / QPainter，推理使用 onnxruntime�
 ## 坐标与单字框
 
 - `base_image_bgr` 是原图或 PDF 渲染页，boxes、JSON 和 PNG 切片始终使用此坐标系。
+- PDF 经 `utils/pdf.py` 优先提取单张铺满页面的扫描原图并应用页面旋转；含文字（包括隐藏 OCR 层）、图形、批注、裁剪、特殊颜色空间或透明效果等复杂页保守按 DPI 渲染。原图提取失败仍先使用 PyMuPDF 渲染。坐标回归包含 `tests/test_pdf.py`。
 - `view_image_bgr`、`view_scale`、`viewport_offset`、`draw_origin` 只用于显示；缩放和平移不改变 boxes 或导出清晰度。
 - `image_scale` 作用于 OCR 副本；统一经过 `ocr/image.py` 的尺寸限制，`ocr_max_side` 默认 2560，非正值回退到 2560。推理结果按实际宽高比例回映原图。
 - 单字框跟随可信墨迹，可自然重叠。存在可靠笔画而未识别出文字时保留无文本框，不虚构字标签；缺少可信墨迹时保留定位估计，不能声称得到真实轮廓。
