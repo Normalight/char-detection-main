@@ -35,6 +35,50 @@ def signature_value(text):
     return text
 
 
+MAX_DESCRIPTION = 2000
+
+
+def plain_notes(text):
+    """Render the Chinese markdown release note as plain dialog text.
+
+    原生更新弹窗直接显示纯文本说明，不提供任何外链，避免把用户引向
+    列出全部历史版本的发行版页面。
+    """
+    lines = []
+    for line in (text or '').splitlines():
+        line = line.strip()
+        if not line:
+            lines.append('')
+            continue
+        line = re.sub(r'^#{1,6}\s*', '', line)
+        line = re.sub(r'`([^`]*)`', r'\1', line)
+        line = re.sub(r'\*\*([^*]+)\*\*', r'\1', line)
+        line = re.sub(r'\*([^*]+)\*', r'\1', line)
+        line = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', line)
+        line = re.sub(r'^[-*+]\s+', '· ', line)
+        lines.append(line)
+    merged = '\n'.join(lines)
+    merged = re.sub(r'\n{3,}', '\n\n', merged).strip()
+    if len(merged) > MAX_DESCRIPTION:
+        merged = merged[:MAX_DESCRIPTION - 1].rstrip() + '…'
+    return merged
+
+
+def inline_notes(feed, notes):
+    """Replace external release-note links with an inline plain-text description."""
+    for item in feed.findall('.//item'):
+        for tag in ('releaseNotesLink', 'fullReleaseNotesLink',
+                    'releaseNotesURL', 'fullReleaseNotesURL'):
+            for element in item.findall(f'{{{NS}}}{tag}'):
+                item.remove(element)
+        if notes is not None:
+            description = item.find('description')
+            if description is None:
+                description = ET.SubElement(item, 'description')
+            description.text = plain_notes(notes)
+            description.set(f'{{{NS}}}format', 'plain-text')
+
+
 def verify_enclosure_signature(path, signature, public_key):
     """Re-verify the official signer's output against the exact shipped public key."""
     from nacl.signing import VerifyKey
@@ -55,7 +99,7 @@ def windows_appcast(config, archive, url, signature, notes, output):
     ET.SubElement(channel, 'title').text = config.product + ' ' + config.channel
     item = ET.SubElement(channel, 'item')
     ET.SubElement(item, 'title').text = config.version
-    ET.SubElement(item, 'description').text = notes
+    ET.SubElement(item, 'description', {f'{{{NS}}}format': 'plain-text'}).text = plain_notes(notes)
     ET.SubElement(item, f'{{{NS}}}version').text = config.build_version
     ET.SubElement(item, f'{{{NS}}}shortVersionString').text = config.version.removeprefix('v')
     ET.SubElement(item, 'enclosure', {'url': url, 'length': str(archive.stat().st_size),
@@ -88,6 +132,9 @@ def macos_appcast(args):
         if args.public_key:
             archive = args.archives / enclosure.attrib['url'].rsplit('/', 1)[-1]
             verify_enclosure_signature(archive, enclosure.get(f'{{{NS}}}edSignature'), args.public_key)
+    notes = args.notes.read_text(encoding='utf-8') if args.notes else None
+    inline_notes(feed, notes)
+    feed.write(args.archives / 'appcast.xml', encoding='utf-8', xml_declaration=True)
 
 
 def main():
@@ -109,6 +156,7 @@ def main():
     mac.add_argument('--tool', type=Path, required=True)
     mac.add_argument('--account', help='Sparkle signing keychain account name')
     mac.add_argument('--ed-key-file', help='私钥文件路径；CI 自动签名使用，不读钥匙串')
+    mac.add_argument('--notes', type=Path, help='该版本中文更新说明；以内嵌纯文本展示，不生成外链')
     mac.add_argument('--public-key', default=os.environ.get('HANZI_UPDATE_PUBLIC_KEY'),
                      help='复验 appcast 签名的公钥')
     mac.add_argument('--download-url-prefix', required=True)

@@ -12,9 +12,12 @@ static void report(const char *event, SUAppcastItem *item) {
     if (reportEvent) reportEvent(event, item ? item.versionString.UTF8String : "");
 }
 
-@interface HanziUpdateDelegate : NSObject <SPUUpdaterDelegate>
+@interface HanziUpdateDelegate : NSObject <SPUUpdaterDelegate, SPUStandardUserDriverDelegate>
 @end
 @implementation HanziUpdateDelegate
+- (BOOL)standardUserDriverShouldShowVersionHistoryForAppcastItem:(SUAppcastItem *)item {
+    return NO;
+}
 - (void)updater:(SPUUpdater *)sender didFindValidUpdate:(SUAppcastItem *)item {
     report("update_found", item);
 }
@@ -50,9 +53,10 @@ int sparkle_initialize(const char *bundlePath, void (*prepare)(void),
         prepareHost = prepare;
         reportEvent = event;
         delegate = [HanziUpdateDelegate new];
-        driver = [[SPUStandardUserDriver alloc] initWithHostBundle:bundle delegate:nil];
+        driver = [[SPUStandardUserDriver alloc] initWithHostBundle:bundle delegate:delegate];
         updater = [[SPUUpdater alloc] initWithHostBundle:bundle applicationBundle:bundle
             userDriver:driver delegate:delegate];
+        updater.automaticallyChecksForUpdates = NO;
         NSError *error = nil;
         if (![updater startUpdater:&error]) {
             sparkle_shutdown();

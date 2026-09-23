@@ -61,7 +61,8 @@ def bundle_version(app):
         version, build = '0.0.0', '0'
     else:
         version, build = release_version(raw)
-    data.update(CFBundleVersion=build, CFBundleShortVersionString=version)
+    data.update(CFBundleVersion=build, CFBundleShortVersionString=version,
+                CFBundleDevelopmentRegion='zh_CN', CFBundleLocalizations=['zh_CN', 'zh-Hans'])
     path.write_bytes(plistlib.dumps(data))
 
 
@@ -146,7 +147,7 @@ def package_macos(root, app):
     plist_path = app / 'Contents/Info.plist'
     data = plistlib.loads(plist_path.read_bytes())
     data.update(SUFeedURL=config.feed_url, SUPublicEDKey=config.public_key,
-                SUEnableAutomaticChecks=True, SUAllowsAutomaticUpdates=False,
+                SUEnableAutomaticChecks=False, SUAllowsAutomaticUpdates=False,
                 SUVerifyUpdateBeforeExtraction=True)
     plist_path.write_bytes(plistlib.dumps(data))
     sign_macos(app, identity)

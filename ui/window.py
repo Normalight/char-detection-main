@@ -594,7 +594,7 @@ def main():
         w.core._cancel_background_prefetch()
     guard = protect_window(w, session, w.core.save_current, lock_session)
     attach_updates(w, session.product, button=w.check_updates_button,
-                   is_locked=lambda: guard.locked)
+                   is_locked=lambda: guard.locked, precheck=guard.check_native_update)
     w.showMaximized()
     sys.exit(app.exec())
 

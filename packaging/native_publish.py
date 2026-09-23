@@ -1,8 +1,8 @@
 """Verify signed native builds and publish them to the public distribution repository.
 
 Upload order matters: immutable version installers first, then the stable feed
-files that point at them. Existing version attachments are never replaced with
-different content; the stable appcast is atomically clobbered instead.
+files that point at them. Verify public GitCode bytes before marking publication
+complete, including when an attachment already existed.
 """
 import argparse
 import base64
@@ -14,11 +14,12 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
 NS = 'http://www.andymatuschak.org/xml-namespaces/sparkle'
+ET.register_namespace('sparkle', NS)
 TARGETS = {'windows-appcast.xml': 'windows-x64', 'macos-appcast.xml': 'macos-arm64'}
 
 
@@ -153,6 +154,113 @@ def verify_public_urls(urls):
                 raise PublishError(f'公开下载验证失败：{url}')
 
 
+def gitcode_destination(feed_base, product):
+    parts = urlsplit(feed_base)
+    segments = parts.path.strip('/').split('/')
+    if (parts.scheme != 'https' or parts.hostname != 'gitcode.com' or parts.username
+            or parts.password or parts.query or parts.fragment or len(segments) != 5
+            or segments[2:4] != ['releases', 'download']
+            or segments[4] != product + '-stable'):
+        raise PublishError('GitCode 更新源配置无效')
+    return segments[0], segments[1], segments[4]
+
+
+def verify_gitcode_file(url, path):
+    """Verify public bytes without forwarding either publishing credential."""
+    import requests
+    parts = urlsplit(url)
+    if (parts.scheme != 'https' or not parts.hostname or parts.username or parts.password
+            or not (parts.hostname == 'gitcode.com' or parts.hostname.endswith('.gitcode.com'))):
+        raise PublishError('GitCode 返回了不可信的附件地址')
+    expected = Path(path).stat().st_size
+    try:
+        with requests.get(url, stream=True, timeout=(15, 120)) as response:
+            if (response.status_code != 200 or urlsplit(response.url).scheme != 'https'):
+                raise PublishError('GitCode 附件尚未可公开下载：' + Path(path).name)
+            sha, count = hashlib.sha256(), 0
+            for chunk in response.iter_content(1024 * 1024):
+                count += len(chunk)
+                if count > expected:
+                    raise PublishError('GitCode 附件大小不符：' + Path(path).name)
+                sha.update(chunk)
+    except requests.RequestException:
+        raise PublishError('GitCode 公开下载失败：' + Path(path).name) from None
+    if (count, sha.hexdigest()) != (expected, digest(path)):
+        raise PublishError('GitCode 附件内容不符：' + Path(path).name)
+
+
+def public_gitcode_asset(publisher, tag, path, *, replace=False, verify=verify_gitcode_file):
+    """Publish one asset and verify its publicly served bytes before returning."""
+    path = Path(path)
+    for attempt in range(6):
+        release = publisher.release(tag)
+        if release is None:
+            time.sleep(2)
+            continue
+        matches = [item for item in release.get('assets', []) if item.get('name') == path.name]
+        if len(matches) > 1:
+            raise PublishError('GitCode 存在多个同名附件：' + path.name)
+        if matches:
+            url = matches[0]['browser_download_url']
+            try:
+                verify(url, path)
+                return url
+            except PublishError:
+                if not replace:
+                    raise
+                # GitCode's attachment API has no clobber operation.
+                publisher.api('DELETE', '/releases/' + quote(tag, safe='')
+                              + '/attach_files/' + str(int(matches[0]['id'])))
+        if attempt == 5:
+            break
+        publisher.upload(tag, path)
+        time.sleep(2)
+    raise PublishError('GitCode 附件上传后未通过公开校验：' + path.name)
+
+
+def gitcode_appcast(source, filename, url, output):
+    feed = ET.parse(source)
+    items = feed.findall('.//item')
+    if len(items) != 1:
+        raise PublishError('原生更新源必须只有一个版本条目')
+    item = items[0]
+    enclosure = item.find('enclosure')
+    if enclosure is None or enclosure.get('url', '').rsplit('/', 1)[-1] != filename:
+        raise PublishError('原生更新源与 GitCode 安装包不匹配')
+    for tag in ('releaseNotesLink', 'fullReleaseNotesLink',
+                'releaseNotesURL', 'fullReleaseNotesURL'):
+        for element in item.findall(f'{{{NS}}}{tag}'):
+            item.remove(element)
+    enclosure.set('url', url)
+    feed.write(output, encoding='utf-8', xml_declaration=True)
+
+
+def publish_gitcode(product, version, config, assets, notes, publisher=None,
+                    verify=verify_gitcode_file):
+    owner, repo, stable_tag = gitcode_destination(config['gitcode_feed_base'], product)
+    if publisher is None:
+        from publish_gitcode import Publisher
+        publisher = Publisher(owner, repo, os.environ['GITCODE_TOKEN'])
+    client = publisher
+    client.api('GET')  # Fail before creating any GitCode release if access is absent.
+    tag = product + '-' + version
+    client.ensure_release(tag, tag, notes.read_text(encoding='utf-8'))
+    urls = {}
+    for target in ('windows-x64', 'macos-arm64'):
+        path = assets / (f'{tag}-{target}' + ('.exe' if target == 'windows-x64' else '.zip'))
+        urls[target] = public_gitcode_asset(client, tag, path, verify=verify)
+    with tempfile.TemporaryDirectory(prefix='gitcode-native-feeds-') as directory:
+        staged = Path(directory)
+        for name, target in TARGETS.items():
+            filename = f'{tag}-{target}' + ('.exe' if target == 'windows-x64' else '.zip')
+            gitcode_appcast(assets / name, filename, urls[target], staged / name)
+        client.ensure_release(stable_tag, stable_tag, '稳定更新源')
+        for name in TARGETS:
+            public_gitcode_asset(client, stable_tag, staged / name, replace=True, verify=verify)
+            # Check the exact URL embedded in new clients, not only the API's asset URL.
+            verify(config['gitcode_feed_base'] + '/' + name, staged / name)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--product', required=True)
@@ -182,7 +290,14 @@ def main():
 
     if not os.getenv('GH_TOKEN'):
         raise PublishError('需要 PUBLIC_RELEASE_TOKEN 作为 GH_TOKEN')
+    if not os.getenv('GITCODE_TOKEN'):
+        raise PublishError('需要 GITCODE_TOKEN 才能发布客户端使用的 GitCode 更新源')
     from publish_public import GitHub, PRODUCTS
+    from publish_gitcode import Publisher
+
+    owner, gitcode_repo, _ = gitcode_destination(config['gitcode_feed_base'], args.product)
+    gitcode = Publisher(owner, gitcode_repo, os.environ['GITCODE_TOKEN'])
+    gitcode.api('GET')
 
     client = GitHub()
     parts = urlsplit(config['feed_base'])
@@ -225,6 +340,7 @@ def main():
         config['feed_base'] + '/windows-appcast.xml', config['feed_base'] + '/macos-appcast.xml',
         f'{base}/{tag}/{exe.name}', f'{base}/{tag}/{archive.name}',
     ])
+    publish_gitcode(args.product, version, config, args.assets, args.notes, publisher=gitcode)
     url = f'https://github.com/{repository}/releases/tag/{tag}'
     Path('public-release.json').write_text(json.dumps({'url': url, 'product': args.product,
         'version': version, 'stable_feed': stable_tag}, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
