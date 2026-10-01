@@ -1,4 +1,4 @@
-"""Print release metadata from a ZIP; optionally publish to the local auth service."""
+"""Print release metadata from a ZIP; optionally register with the auth service."""
 import argparse
 import getpass
 import hashlib
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import urllib.request
 from hanzi_auth.updates import PRODUCTS, TARGETS, parsed_version, validate_release
-from hanzi_auth.policy import server_url, uses_encrypted_channel
+from hanzi_auth.policy import server_url
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
     parser.add_argument('--version', required=True)
     parser.add_argument('--url', help='GitCode 公开发行版附件下载链接')
     parser.add_argument('--notes', default='')
-    parser.add_argument('--server', help='可选：将配置写入该账号服务，例如 http://127.0.0.1:8765')
+    parser.add_argument('--server', help='可选：将配置写入账号服务，例如 https://platform.myhanzi.cn')
     parser.add_argument('--admin', default='admin')
     args = parser.parse_args()
     parsed_version(args.version)
@@ -35,8 +35,6 @@ def main():
         if not args.url:
             parser.error('--server 需要同时填写 --url')
         url = server_url(args.server)
-        if uses_encrypted_channel(url):
-            parser.error('管理操作请连接 SSH 隧道的本机地址。')
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, req, fp, code, msg, headers, newurl):
                 return None

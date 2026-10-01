@@ -122,6 +122,8 @@ Python 文件使用 `snake_case.py`，按职责命名；外部入口、软件标
 
 ## 原生更新
 
+认证、会话与更新前置检查默认连接 `https://platform.myhanzi.cn`，保留 `/api/secure` 加密协议。旧公网 IP 的显式配置由认证包转换为 HTTPS 域名；公开 feed 与安装包仍在 GitCode。
+
 `hanzi-update` 的 attach_updates 使用 WinSparkle / Sparkle；保留现有按钮和 closeEvent 保存契约。登录后由认证守卫先检查公开 feed 与安装包是否就绪，随后才打开原生界面；GitCode 地址不在界面展示。Windows 当前用户安装器和 Mac 外层 app 的签名/公证辅助源在 hanzi-auth/tools/desktop_packaging/native_*，通过 sync_desktop.py 同步。工作流从 packaging/native_update_public.json 的 `gitcode_feed_base` 生成 HANZI_UPDATE_FEED，并配合 HANZI_UPDATE_PUBLIC_KEY 生成原生更新产物。PACKAGE_VERSION 派生原生版本信息，配置与已构建产物必须一致。原生 CI 用 `GITCODE_TOKEN` 直接上传并校验 GitCode 安装包与 feed，认证服务镜像器可补同步；`feed_base`（GitHub）供旧版客户端回退。Mac Bridge 隐藏历史按钮，两端内嵌中文说明。详细流程与尚未完成的真机验收见 ../hanzi-update/docs/update/release.md 和 test_report.md。
 
 Mac 原生更新构建支持 HANZI_MAC_SIGNING=adhoc，无 Apple 签名标识时默认采用此模式；使用本地 ad-hoc 签名并保留更新包 Ed25519 校验。developer-id 模式另需证书及公证 profile。
