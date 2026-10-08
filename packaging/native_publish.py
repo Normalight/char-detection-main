@@ -92,9 +92,7 @@ def upload_asset(client, repo, tag, path, release_id, clobber=False):
     """Upload with retry; an existing identical asset is accepted, a different one is not."""
     for attempt in range(4):
         assets = {a['name']: a for a in client.assets(release_id)}
-        if path.name in assets:
-            if clobber:
-                break
+        if path.name in assets and not clobber:
             verify_remote_asset(assets[path.name], path)
             return
         args = ['release', 'upload', tag, str(path), '--repo', repo]
@@ -113,16 +111,11 @@ def upload_asset(client, repo, tag, path, release_id, clobber=False):
             continue
         current = {a['name']: a for a in client.assets(release_id)}
         if path.name in current:
-            if not clobber:
-                verify_remote_asset(current[path.name], path)
+            verify_remote_asset(current[path.name], path)
             return
         if attempt == 3:
             raise PublishError(f'附件上传后未确认：{path.name}')
         time.sleep(2)
-    if clobber:
-        current = {a['name']: a for a in client.assets(release_id)}
-        if path.name not in current:
-            raise PublishError(f'附件上传后未确认：{path.name}')
 
 
 def ensure_release(client, repo, tag, title, notes_path, draft):

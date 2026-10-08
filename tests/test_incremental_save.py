@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import zipfile
 from unittest.mock import Mock
 from utils import storage, excel
 
@@ -8,6 +9,25 @@ def page():
     image = np.arange(80*100*3, dtype=np.uint8).reshape(80,100,3)
     boxes = [np.array([[x,0],[x+20,0],[x+20,30],[x,30]], dtype=np.float32) for x in (0,40)]
     return image, boxes, {'type':'image','source_path':'/tmp/test.png','boxes':boxes}
+
+
+@pytest.mark.parametrize('zip64_limit', [None, 1024])
+def test_excel_supports_zip64(tmp_path, monkeypatch, zip64_limit):
+    if zip64_limit is not None:
+        # Exercise ZIP64 with real export data at a small size threshold.
+        monkeypatch.setattr(zipfile, 'ZIP64_LIMIT', zip64_limit)
+    image, boxes, item = page()
+    storage.save_current_slices_and_json(str(tmp_path), item, image, boxes)
+
+    excel.build_excel_for_single_item(str(tmp_path), item)
+
+    with zipfile.ZipFile(next(tmp_path.rglob('*.xlsx'))) as archive:
+        assert archive.testzip() is None
+        assert len([name for name in archive.namelist() if name.startswith('xl/media/')]) == 2
+        assert 'Crops' in archive.read('xl/workbook.xml').decode('utf-8')
+        assert 'Info' in archive.read('xl/workbook.xml').decode('utf-8')
+        if zip64_limit is not None:
+            assert any(info.extract_version == 45 for info in archive.infolist())
 
 
 def test_repeat_and_single_edit_reuse_outputs(tmp_path, monkeypatch):

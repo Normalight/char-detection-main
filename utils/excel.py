@@ -618,7 +618,7 @@ def _build_excel_for_single_item(
         # 不启用 constant_memory，避免大量图片/行高设置在部分 Excel/WPS 环境中显示异常。
         # Thumbnails are already bounded in memory; avoid one temporary file
         # per embedded image (hundreds of slow opens on Windows).
-        wb = xlsxwriter.Workbook(excel_path, {"in_memory": True})
+        wb = xlsxwriter.Workbook(excel_path, {"in_memory": True, "use_zip64": True})
         ws = wb.add_worksheet("Crops")
         ws.hide_gridlines(0)
         _safe_set_cell_size(ws, row_count, col_count, cell_size_px)
