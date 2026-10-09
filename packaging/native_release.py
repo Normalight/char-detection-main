@@ -53,16 +53,27 @@ def exe_version(root):
             StringStruct('FileVersion', version)])]), VarFileInfo([VarStruct('Translation', [1033, 1200])])])
 
 
-def bundle_version(app):
-    path = app / 'Contents/Info.plist'
-    data = plistlib.loads(path.read_bytes())
+def mac_version_info():
     raw = os.environ.get('PACKAGE_VERSION', 'v0.0.0-dev')
     if raw == 'v0.0.0-dev':
         version, build = '0.0.0', '0'
     else:
         version, build = release_version(raw)
-    data.update(CFBundleVersion=build, CFBundleShortVersionString=version,
+    return dict(CFBundleVersion=build, CFBundleShortVersionString=version,
                 CFBundleDevelopmentRegion='zh_CN', CFBundleLocalizations=['zh_CN', 'zh-Hans'])
+
+
+def runtime_bundle_info(root):
+    name, _, identifier = PRODUCTS[Path(root).resolve().name]
+    return dict(mac_version_info(), CFBundleName=name, CFBundleDisplayName=name,
+                CFBundleIdentifier=identifier + '.runtime',
+                LSMinimumSystemVersion='14.0', NSHighResolutionCapable=True)
+
+
+def bundle_version(app):
+    path = app / 'Contents/Info.plist'
+    data = plistlib.loads(path.read_bytes())
+    data.update(mac_version_info())
     path.write_bytes(plistlib.dumps(data))
 
 
@@ -148,7 +159,7 @@ def package_macos(root, app):
     data = plistlib.loads(plist_path.read_bytes())
     data.update(SUFeedURL=config.feed_url, SUPublicEDKey=config.public_key,
                 SUEnableAutomaticChecks=False, SUAllowsAutomaticUpdates=False,
-                SUVerifyUpdateBeforeExtraction=True)
+                SUVerifyUpdateBeforeExtraction=True, SURelaunchHostBundle=True)
     plist_path.write_bytes(plistlib.dumps(data))
     sign_macos(app, identity)
     archive = root / 'dist' / f'{root.name}-{config.version}-macos-arm64.zip'

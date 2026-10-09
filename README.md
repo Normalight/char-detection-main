@@ -232,7 +232,7 @@ Mac ZIP 根目录只有 `中文字符标注工具.app` 与 `MAC使用说明.txt`
 
 账号后台提供登录日志，记录时间、账号、软件、来源 IP、结果和客户端版本，支持筛选与翻页。密码和会话令牌不会进入日志。
 
-软件登录后自动检查一次更新，并每日检查；也可点击工具栏“检查更新”或“帮助 → 检查更新”。客户端先向 `https://platform.myhanzi.cn` 发起带登录会话的加密前置检查，服务确认登记版本与公开 GitCode feed 就绪后，再启动 Windows WinSparkle / macOS Sparkle 下载、验签和安装。feed 与安装包继续使用 GitCode 的 `qq_28599947/hanzi-soft`，来源由 `packaging/native_update_public.json` 配置。更新重启先处理未保存成果。原生更新发布流程见下方“原生自动更新构建”；历史 ZIP 更新实现保留在独立更新包中。
+软件登录后自动检查一次更新，并每日检查；也可点击工具栏“检查更新”或“帮助 → 检查更新”。客户端先向 `https://platform.myhanzi.cn` 发起带登录会话的加密前置检查，服务确认登记版本与公开 GitCode feed 就绪后，再启动 Windows WinSparkle / macOS Sparkle 下载、验签和安装。feed 与安装包继续使用 GitCode 的 `qq_28599947/hanzi-soft`，来源由 `packaging/native_update_public.json` 配置。选择“跳过本次更新”后，启动和每日检查不再提醒该版本；手动“检查更新”仍可重新发现它。“稍后提醒”保留后续提醒。更新重启先处理未保存成果。原生更新发布流程见下方“原生自动更新构建”；历史 ZIP 更新实现保留在独立更新包中。
 
 发布时必须设置 `PACKAGE_VERSION`，构建会生成 `build_info.json`。可用 `python packaging/release_info.py <安装包.zip> --product char-detection-main --target windows-x64 --version v1.0.0` 计算大小和校验值；Mac 的 target 为 `macos-arm64`。GitCode 仓库创建、标签及附件发布步骤见工作区 `hanzi-auth/README.md` 的“GitCode 发布与软件更新”。
 
@@ -272,6 +272,8 @@ Python 模块使用小写下划线命名，以职责区分；现有命令入口�
 
 ### 原生自动更新构建
 
-共享更新包 0.1.5 使用 Windows WinSparkle + 当前用户 Inno Setup 安装器，以及 macOS Sparkle 2。设置公开 HTTPS feed、公钥和平台签名配置后，沿用本项目平台构建入口。安装前仍遵循未保存成果处理；未配置原生更新的构建会在手动检查时提示不可用。首次从 Windows 便携版迁移需要安装新版安装器。公开仓的版本资产统一为 `<软件>-vX.Y.Z-<平台>`：Windows x64 为原生安装器 `.exe`，macOS arm64 为更新 ZIP，与历史 Release 命名一致；`dist/` 每个平台只保留一个安装包。`.github/workflows/native-build.yml` 可用 `publish` 输入由 CI 用仓库 Secrets 中的私钥签名，并调用 `packaging/native_publish.py` 发布版本安装包与 `<软件>-stable` 更新源。配置和发布说明见工作区 `hanzi-update/docs/update/release.md`，验收状态见 `test_report.md`。
+共享更新包 0.1.6 使用 Windows WinSparkle + 当前用户 Inno Setup 安装器，以及 macOS Sparkle 2。设置公开 HTTPS feed、公钥和平台签名配置后，沿用本项目平台构建入口。安装前仍遵循未保存成果处理；未配置原生更新的构建会在手动检查时提示不可用。首次从 Windows 便携版迁移需要安装新版安装器。公开仓的版本资产统一为 `<软件>-vX.Y.Z-<平台>`：Windows x64 为原生安装器 `.exe`，macOS arm64 为更新 ZIP，与历史 Release 命名一致；`dist/` 每个平台只保留一个安装包。`.github/workflows/native-build.yml` 可用 `publish` 输入由 CI 用仓库 Secrets 中的私钥签名，并调用 `packaging/native_publish.py` 发布版本安装包与 `<软件>-stable` 更新源。配置和发布说明见工作区 `hanzi-update/docs/update/release.md`，验收状态见 `test_report.md`。
 
 Mac 无开发者证书时可设置 `HANZI_MAC_SIGNING=adhoc`，沿用 `bash build_mac.sh arm64`。仍需配置更新 feed、公钥和 Sparkle SDK/bridge；更新 ZIP 使用 Sparkle Ed25519 签名。此模式无需 Apple 公证，首次安装可能需要在系统隐私与安全性中允许打开。
+
+Mac 内部运行程序使用“中文字符标注工具”名称及独立产品标识。更新会等待实际运行程序退出，替换外层产品 app 后通过产品入口重新打开。

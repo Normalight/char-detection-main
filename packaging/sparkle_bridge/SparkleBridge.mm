@@ -2,7 +2,7 @@
 #import <Sparkle/Sparkle.h>
 #import "SparkleBridge.h"
 
-// Explicit host/application bundles are required by our nested PyInstaller app.
+// Update the outer product bundle, but wait for the actual running application.
 static SPUUpdater *updater;
 static SPUStandardUserDriver *driver;
 static void (^resumeInstallation)(void);
@@ -50,11 +50,19 @@ int sparkle_initialize(const char *bundlePath, void (*prepare)(void),
     @autoreleasepool {
         NSBundle *bundle = [NSBundle bundleWithPath:[NSString stringWithUTF8String:bundlePath]];
         if (!bundle) return 0;
+        NSURL *applicationURL = [NSRunningApplication currentApplication].bundleURL;
+        NSBundle *applicationBundle = applicationURL ? [NSBundle bundleWithURL:applicationURL] : nil;
+        NSString *hostPath = bundle.bundleURL.URLByResolvingSymlinksInPath.path;
+        NSString *applicationPath = applicationBundle.bundleURL.URLByResolvingSymlinksInPath.path;
+        // An unrelated or unregistered process cannot safely authorize replacement.
+        if (!applicationBundle.bundleIdentifier || !applicationPath ||
+            (![applicationPath isEqualToString:hostPath] &&
+             ![applicationPath hasPrefix:[hostPath stringByAppendingString:@"/Contents/"]])) return 0;
         prepareHost = prepare;
         reportEvent = event;
         delegate = [HanziUpdateDelegate new];
         driver = [[SPUStandardUserDriver alloc] initWithHostBundle:bundle delegate:delegate];
-        updater = [[SPUUpdater alloc] initWithHostBundle:bundle applicationBundle:bundle
+        updater = [[SPUUpdater alloc] initWithHostBundle:bundle applicationBundle:applicationBundle
             userDriver:driver delegate:delegate];
         updater.automaticallyChecksForUpdates = NO;
         NSError *error = nil;
@@ -72,6 +80,10 @@ void sparkle_check_for_updates(void) {
     } else if (updater.canCheckForUpdates) {
         [updater checkForUpdates];
     }
+}
+void sparkle_check_for_updates_in_background(void) {
+    if (![NSThread isMainThread] || !updater || resumeInstallation || updater.sessionInProgress) return;
+    [updater checkForUpdatesInBackground];
 }
 void sparkle_resume_installation(void) {
     if (![NSThread isMainThread] || !resumeInstallation) return;

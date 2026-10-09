@@ -45,5 +45,6 @@ exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='runtime',
     console=False, strip=False, upx=False, target_arch=os.environ['MAC_ARCH'],
     codesign_identity=None)
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='runtime')
-app = BUNDLE(coll, name='Runtime.app', bundle_identifier='local.character.runtime',
-    info_plist={'LSMinimumSystemVersion': '14.0', 'NSHighResolutionCapable': True})
+runtime_info = native_release['runtime_bundle_info'](root)
+app = BUNDLE(coll, name='Runtime.app', bundle_identifier=runtime_info['CFBundleIdentifier'],
+    info_plist=runtime_info)
