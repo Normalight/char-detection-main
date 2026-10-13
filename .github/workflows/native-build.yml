@@ -39,8 +39,6 @@ jobs:
               {'target': 'macos-x86_64', 'runner': 'macos-15-intel', 'python_arch': 'x64', 'mac_arch': 'x86_64'},
           ]
           selected = os.environ['TARGET'] or 'all'
-          if os.environ['PUBLISH'] == 'true' and selected != 'all':
-              raise SystemExit('发布需要 target=all 的三端完整产物')
           chosen = targets if selected == 'all' else [t for t in targets if t['target'] == selected]
           assert chosen, 'Unknown build target'
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
@@ -226,4 +224,4 @@ jobs:
       - name: Publish signed release and stable feeds
         run: |
           python packaging/native_publish.py --product "$PRODUCT" --version "$PACKAGE_VERSION" \
-            --assets assets --notes "RELEASE_NOTES_$PACKAGE_VERSION.md" --source-commit "$GITHUB_SHA"
+            --assets assets --notes "RELEASE_NOTES_$PACKAGE_VERSION.md" --source-commit "$GITHUB_SHA" --target "${{ inputs.target || 'all' }}"

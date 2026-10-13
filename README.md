@@ -285,3 +285,9 @@ Mac 内部运行程序使用“中文字符标注工具”名称及独立产品�
 使用 `bash build_mac.sh x86_64`，可设置 `PYTHON_X86_64` 指向 Intel Python 3.11。默认仍为 arm64。Intel 保留标准 OpenCV、Qt 和 ONNX 依赖，不采用 arm64 专用裁剪。最低 macOS 14，输出 `char-detection-main-v<版本号>-macos-x86_64.zip`。
 
 原生工作流 `native-build.yml` 默认 `target=all` 构建 Windows x64、Mac arm64 和 Mac Intel 三端。`target=macos-x86_64` 只执行 Intel 构建、自检、测试和 Artifact 上传，使用 `macos-15-intel`。Intel 使用独立 `macos-x86_64-appcast.xml` 更新源；勾选 `publish` 时三端安装包、签名更新源和发布清单一起发布，平台下载与镜像同步按架构区分。
+
+### 分平台发布和平台登记
+
+`native-build.yml` 的 `target` 可选单端，勾选 `publish` 后发布对应安装包、独立平台清单与签名 feed；平台同步完成后更新该端的下载与版本登记。默认 `target=all` 仍构建并发布三端。关闭 `publish` 仅生成 CI Artifact，平台继续显示已公开发布并同步的版本。
+
+平台后台“版本同步”可分别设置各软件的分发平台，切字默认三端、归并默认双端。配置统一用于下载列表、更新预检、版本摘要及镜像同步。

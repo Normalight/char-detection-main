@@ -140,3 +140,5 @@ Mac 内部 Runtime.app 在 mac.spec 中使用公共 `native_release.runtime_bund
 使用 `bash build_mac.sh x86_64`，可设置 `PYTHON_X86_64` 指向 Intel Python 3.11。默认仍为 arm64。Intel 保留标准 OpenCV、Qt 和 ONNX 依赖，不采用 arm64 专用裁剪。最低 macOS 14，输出 `char-detection-main-v<版本号>-macos-x86_64.zip`。
 
 原生工作流 `native-build.yml` 默认 `target=all` 构建 Windows x64、Mac arm64 和 Mac Intel 三端。`target=macos-x86_64` 只执行 Intel 构建、自检、测试和 Artifact 上传，使用 `macos-15-intel`。Intel 使用独立 `macos-x86_64-appcast.xml` 更新源；勾选 `publish` 时三端安装包、签名更新源和发布清单一起发布，平台下载与镜像同步按架构区分。
+
+原生工作流可单独勾选某个平台并开启 `publish`，使用独立平台清单和签名 feed 补发同版安装包；已有其他平台的附件保持不变。只构建时关闭 `publish`，CI Artifact 不会自动进入平台下载目录。平台默认三端，后台允许按软件独立配置分发范围。

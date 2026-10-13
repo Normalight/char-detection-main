@@ -23,9 +23,15 @@ ET.register_namespace('sparkle', NS)
 TARGETS = {'windows-appcast.xml': 'windows-x64', 'macos-appcast.xml': 'macos-arm64',
            'macos-x86_64-appcast.xml': 'macos-x86_64'}
 
-def product_feeds(product):
-    return {name: target for name, target in TARGETS.items()
-            if product == 'char-detection-main' or target != 'macos-x86_64'}
+def product_feeds(product, selected=None):
+    feeds = {name: target for name, target in TARGETS.items()
+             if product == 'char-detection-main' or target != 'macos-x86_64'}
+    if selected and selected != 'all':
+        feeds = {name: target for name, target in feeds.items() if target == selected}
+        if not feeds:
+            raise PublishError('该软件不支持此发布平台')
+    return feeds
+
 
 
 class PublishError(RuntimeError):
@@ -47,7 +53,7 @@ def split_version(value):
     return version
 
 
-def verify_appcasts(product, version, assets, config):
+def verify_appcasts(product, version, assets, config, target=None):
     """Every feed item must point at this version's uploaded file and verify locally."""
     from nacl.signing import VerifyKey
     feed_base = config['feed_base']
@@ -55,7 +61,7 @@ def verify_appcasts(product, version, assets, config):
         raise PublishError('更新源必须为 HTTPS')
     base = feed_base.rsplit('/', 1)[0]
     version_url = f'{base}/{product}-{version}'
-    feeds = product_feeds(product)
+    feeds = product_feeds(product, target)
     expected = {f'{product}-{version}-{target}' + ('.exe' if target == 'windows-x64' else '.zip')
                 for target in feeds.values()}
     for name, target in feeds.items():
@@ -236,7 +242,7 @@ def gitcode_appcast(source, filename, url, output):
 
 
 def publish_gitcode(product, version, config, assets, notes, publisher=None,
-                    verify=verify_gitcode_file):
+                    verify=verify_gitcode_file, target=None):
     owner, repo, stable_tag = gitcode_destination(config['gitcode_feed_base'], product)
     if publisher is None:
         from publish_gitcode import Publisher
@@ -245,17 +251,18 @@ def publish_gitcode(product, version, config, assets, notes, publisher=None,
     client.api('GET')  # Fail before creating any GitCode release if access is absent.
     tag = product + '-' + version
     client.ensure_release(tag, tag, notes.read_text(encoding='utf-8'))
+    feeds = product_feeds(product, target)
     urls = {}
-    for target in product_feeds(product).values():
+    for target in feeds.values():
         path = assets / (f'{tag}-{target}' + ('.exe' if target == 'windows-x64' else '.zip'))
         urls[target] = public_gitcode_asset(client, tag, path, verify=verify)
     with tempfile.TemporaryDirectory(prefix='gitcode-native-feeds-') as directory:
         staged = Path(directory)
-        for name, target in product_feeds(product).items():
+        for name, target in feeds.items():
             filename = f'{tag}-{target}' + ('.exe' if target == 'windows-x64' else '.zip')
             gitcode_appcast(assets / name, filename, urls[target], staged / name)
         client.ensure_release(stable_tag, stable_tag, '稳定更新源')
-        for name in product_feeds(product):
+        for name in feeds:
             public_gitcode_asset(client, stable_tag, staged / name, replace=True, verify=verify)
             # Check the exact URL embedded in new clients, not only the API's asset URL.
             verify(config['gitcode_feed_base'] + '/' + name, staged / name)
@@ -268,6 +275,8 @@ def main():
     parser.add_argument('--assets', type=Path, required=True, help='包含各平台安装包与对应 appcast 的目录')
     parser.add_argument('--notes', type=Path, required=True, help='该版本中文更新说明文件')
     parser.add_argument('--source-commit', default=os.environ.get('GITHUB_SHA', ''))
+    parser.add_argument('--target', choices=['all', *TARGETS.values()], default='all')
+    parser.add_argument('--github-only', action='store_true', help='只发布 GitHub，由平台镜像器完成 GitCode 同步')
     parser.add_argument('--verify-only', action='store_true', help='只做本地校验，不上传')
     args = parser.parse_args()
 
@@ -277,7 +286,7 @@ def main():
     if not args.notes.is_file():
         raise PublishError('缺少该版本的中文更新说明文件')
     version = 'v' + split_version(args.version)
-    feeds = product_feeds(args.product)
+    feeds = product_feeds(args.product, args.target)
     installers = [(args.assets / (f'{args.product}-{version}-{target}' +
                    ('.exe' if target == 'windows-x64' else '.zip')), target)
                   for target in feeds.values()]
@@ -285,21 +294,21 @@ def main():
         if not path.is_file():
             raise PublishError(f'缺少安装包 {path.name}')
 
-    verify_appcasts(args.product, version, args.assets, config)
+    verify_appcasts(args.product, version, args.assets, config, args.target)
     if args.verify_only:
         print('校验通过：各平台安装包签名与 feed 一致')
         return
 
-    if not os.getenv('GH_TOKEN'):
-        raise PublishError('需要 PUBLIC_RELEASE_TOKEN 作为 GH_TOKEN')
-    if not os.getenv('GITCODE_TOKEN'):
+    if not args.github_only and not os.getenv('GITCODE_TOKEN'):
         raise PublishError('需要 GITCODE_TOKEN 才能发布客户端使用的 GitCode 更新源')
     from publish_public import GitHub, PRODUCTS
     from publish_gitcode import Publisher
 
-    owner, gitcode_repo, _ = gitcode_destination(config['gitcode_feed_base'], args.product)
-    gitcode = Publisher(owner, gitcode_repo, os.environ['GITCODE_TOKEN'])
-    gitcode.api('GET')
+    gitcode = None
+    if not args.github_only:
+        owner, gitcode_repo, _ = gitcode_destination(config['gitcode_feed_base'], args.product)
+        gitcode = Publisher(owner, gitcode_repo, os.environ['GITCODE_TOKEN'])
+        gitcode.api('GET')
 
     client = GitHub()
     parts = urlsplit(config['feed_base'])
@@ -317,18 +326,27 @@ def main():
         for path, target in installers:
             records.append({'name': path.name, 'target': target, 'size': path.stat().st_size,
                             'sha256': digest(path)})
-        (stage / 'SHA256SUMS.txt').write_text(
+        suffix = '' if args.target == 'all' else '-' + args.target
+        sums_name = 'SHA256SUMS' + suffix + '.txt'
+        manifest_name = 'release-manifest' + suffix + '.json'
+        notes_file = args.notes
+        if suffix:
+            notes_file = stage / (args.notes.stem + suffix + '.md')
+            notes_file.write_bytes(args.notes.read_bytes())
+        (stage / sums_name).write_text(
             ''.join(item['sha256'] + '  ' + item['name'] + '\n' for item in records), encoding='utf-8')
-        (stage / 'release-manifest.json').write_text(json.dumps({
+        (stage / manifest_name).write_text(json.dumps({
             'schema': 1, 'product': args.product, 'version': version,
             'source_commit': args.source_commit, 'assets': records,
         }, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-        files = [path for path, _ in installers] + [args.notes, stage / 'SHA256SUMS.txt', stage / 'release-manifest.json']
+        files = [path for path, _ in installers] + [notes_file, stage / sums_name, stage / manifest_name]
         for path in files:
             upload_asset(client, repository, tag, path, release['id'])
         final = {a['name'] for a in client.assets(release['id'])}
-        if final != {path.name for path in files}:
+        expected_files = {path.name for path in files}
+        if (final != expected_files if args.target == 'all' else not expected_files.issubset(final)):
             raise PublishError('版本 Release 附件不完整，请人工核对后重试')
+        client.call('release', 'edit', tag, '--repo', repository, '--notes-file', str(args.notes))
         if release['draft']:
             client.call('release', 'edit', tag, '--repo', repository, '--draft=false')
 
@@ -340,7 +358,8 @@ def main():
 
     verify_public_urls([config['feed_base'] + '/' + name for name in feeds] +
                        [f'{base}/{tag}/{path.name}' for path, _ in installers])
-    publish_gitcode(args.product, version, config, args.assets, args.notes, publisher=gitcode)
+    if not args.github_only:
+        publish_gitcode(args.product, version, config, args.assets, args.notes, publisher=gitcode, target=args.target)
     url = f'https://github.com/{repository}/releases/tag/{tag}'
     Path('public-release.json').write_text(json.dumps({'url': url, 'product': args.product,
         'version': version, 'stable_feed': stable_tag}, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
