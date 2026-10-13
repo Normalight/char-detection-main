@@ -20,7 +20,12 @@ import xml.etree.ElementTree as ET
 
 NS = 'http://www.andymatuschak.org/xml-namespaces/sparkle'
 ET.register_namespace('sparkle', NS)
-TARGETS = {'windows-appcast.xml': 'windows-x64', 'macos-appcast.xml': 'macos-arm64'}
+TARGETS = {'windows-appcast.xml': 'windows-x64', 'macos-appcast.xml': 'macos-arm64',
+           'macos-x86_64-appcast.xml': 'macos-x86_64'}
+
+def product_feeds(product):
+    return {name: target for name, target in TARGETS.items()
+            if product == 'char-detection-main' or target != 'macos-x86_64'}
 
 
 class PublishError(RuntimeError):
@@ -50,8 +55,10 @@ def verify_appcasts(product, version, assets, config):
         raise PublishError('更新源必须为 HTTPS')
     base = feed_base.rsplit('/', 1)[0]
     version_url = f'{base}/{product}-{version}'
-    expected = {f'{product}-{version}-windows-x64.exe', f'{product}-{version}-macos-arm64.zip'}
-    for name, target in TARGETS.items():
+    feeds = product_feeds(product)
+    expected = {f'{product}-{version}-{target}' + ('.exe' if target == 'windows-x64' else '.zip')
+                for target in feeds.values()}
+    for name, target in feeds.items():
         appcast = assets / name
         if not appcast.is_file():
             raise PublishError(f'缺少 {name}；请用 publish 输入重新构建以生成 feed')
@@ -80,7 +87,7 @@ def verify_appcasts(product, version, assets, config):
             raise PublishError(f'{name} 签名复验失败，请核对签名密钥与客户端公钥配对') from exc
         expected.discard(filename)
     if expected:
-        raise PublishError('两个平台 feed 未覆盖全部安装包')
+        raise PublishError('各平台 feed 未覆盖全部安装包')
 
 
 def verify_remote_asset(remote, path):
@@ -239,16 +246,16 @@ def publish_gitcode(product, version, config, assets, notes, publisher=None,
     tag = product + '-' + version
     client.ensure_release(tag, tag, notes.read_text(encoding='utf-8'))
     urls = {}
-    for target in ('windows-x64', 'macos-arm64'):
+    for target in product_feeds(product).values():
         path = assets / (f'{tag}-{target}' + ('.exe' if target == 'windows-x64' else '.zip'))
         urls[target] = public_gitcode_asset(client, tag, path, verify=verify)
     with tempfile.TemporaryDirectory(prefix='gitcode-native-feeds-') as directory:
         staged = Path(directory)
-        for name, target in TARGETS.items():
+        for name, target in product_feeds(product).items():
             filename = f'{tag}-{target}' + ('.exe' if target == 'windows-x64' else '.zip')
             gitcode_appcast(assets / name, filename, urls[target], staged / name)
         client.ensure_release(stable_tag, stable_tag, '稳定更新源')
-        for name in TARGETS:
+        for name in product_feeds(product):
             public_gitcode_asset(client, stable_tag, staged / name, replace=True, verify=verify)
             # Check the exact URL embedded in new clients, not only the API's asset URL.
             verify(config['gitcode_feed_base'] + '/' + name, staged / name)
@@ -258,7 +265,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--product', required=True)
     parser.add_argument('--version', required=True)
-    parser.add_argument('--assets', type=Path, required=True, help='包含两平台安装包与两个 appcast 的目录')
+    parser.add_argument('--assets', type=Path, required=True, help='包含各平台安装包与对应 appcast 的目录')
     parser.add_argument('--notes', type=Path, required=True, help='该版本中文更新说明文件')
     parser.add_argument('--source-commit', default=os.environ.get('GITHUB_SHA', ''))
     parser.add_argument('--verify-only', action='store_true', help='只做本地校验，不上传')
@@ -270,15 +277,17 @@ def main():
     if not args.notes.is_file():
         raise PublishError('缺少该版本的中文更新说明文件')
     version = 'v' + split_version(args.version)
-    exe = args.assets / f'{args.product}-{version}-windows-x64.exe'
-    archive = args.assets / f'{args.product}-{version}-macos-arm64.zip'
-    for path in (exe, archive):
+    feeds = product_feeds(args.product)
+    installers = [(args.assets / (f'{args.product}-{version}-{target}' +
+                   ('.exe' if target == 'windows-x64' else '.zip')), target)
+                  for target in feeds.values()]
+    for path, target in installers:
         if not path.is_file():
             raise PublishError(f'缺少安装包 {path.name}')
 
     verify_appcasts(args.product, version, args.assets, config)
     if args.verify_only:
-        print('校验通过：两平台安装包签名与 feed 一致')
+        print('校验通过：各平台安装包签名与 feed 一致')
         return
 
     if not os.getenv('GH_TOKEN'):
@@ -305,7 +314,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='native-publish-') as stage:
         stage = Path(stage)
         records = []
-        for path, target in ((exe, 'windows-x64'), (archive, 'macos-arm64')):
+        for path, target in installers:
             records.append({'name': path.name, 'target': target, 'size': path.stat().st_size,
                             'sha256': digest(path)})
         (stage / 'SHA256SUMS.txt').write_text(
@@ -314,7 +323,7 @@ def main():
             'schema': 1, 'product': args.product, 'version': version,
             'source_commit': args.source_commit, 'assets': records,
         }, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-        files = [exe, archive, args.notes, stage / 'SHA256SUMS.txt', stage / 'release-manifest.json']
+        files = [path for path, _ in installers] + [args.notes, stage / 'SHA256SUMS.txt', stage / 'release-manifest.json']
         for path in files:
             upload_asset(client, repository, tag, path, release['id'])
         final = {a['name'] for a in client.assets(release['id'])}
@@ -326,13 +335,11 @@ def main():
     stable_tag = f'{args.product}-stable'
     notes = stage_stable_notes(stable_tag)
     stable = ensure_release(client, repository, stable_tag, PRODUCTS[args.product] + ' 稳定更新源', notes, draft=False)
-    for name in TARGETS:
+    for name in feeds:
         upload_asset(client, repository, stable_tag, args.assets / name, stable['id'], clobber=True)
 
-    verify_public_urls([
-        config['feed_base'] + '/windows-appcast.xml', config['feed_base'] + '/macos-appcast.xml',
-        f'{base}/{tag}/{exe.name}', f'{base}/{tag}/{archive.name}',
-    ])
+    verify_public_urls([config['feed_base'] + '/' + name for name in feeds] +
+                       [f'{base}/{tag}/{path.name}' for path, _ in installers])
     publish_gitcode(args.product, version, config, args.assets, args.notes, publisher=gitcode)
     url = f'https://github.com/{repository}/releases/tag/{tag}'
     Path('public-release.json').write_text(json.dumps({'url': url, 'product': args.product,

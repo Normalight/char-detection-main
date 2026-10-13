@@ -88,6 +88,10 @@ jobs:
             runner: macos-15
             python_arch: arm64
             mac_arch: arm64
+          - target: macos-x86_64
+            runner: macos-15-intel
+            python_arch: x64
+            mac_arch: x86_64
     env:
       QT_QPA_PLATFORM: offscreen
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
@@ -131,7 +135,12 @@ jobs:
         env:
           MAC_TARGET: ${{ matrix.mac_arch }}
         run: |
-          PYTHON_ARM64="$(command -v python)" bash build_mac.sh "$MAC_TARGET"
+          if [ "$MAC_TARGET" = arm64 ]; then
+            export PYTHON_ARM64="$(command -v python)"
+          else
+            export PYTHON_X86_64="$(command -v python)"
+          fi
+          bash build_mac.sh "$MAC_TARGET"
       - name: Test (macOS)
         if: runner.os == 'macOS'
         shell: bash

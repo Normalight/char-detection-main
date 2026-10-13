@@ -16,6 +16,7 @@ SDKS = {
     'macos-arm64': ('https://github.com/sparkle-project/Sparkle/releases/download/2.10.0/Sparkle-2.10.0.tar.xz',
                     'c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c'),
 }
+SDKS['macos-x86_64'] = SDKS['macos-arm64']
 
 
 def prepare(root, target):
@@ -43,7 +44,7 @@ def prepare(root, target):
     with tarfile.open(archive) as bundle:
         bundle.extractall(cache, filter='data')
     bridge = cache / 'SparkleBridge.dylib'
-    subprocess.run(['xcrun', 'clang++', '-arch', 'arm64', '-mmacosx-version-min=14.0',
+    subprocess.run(['xcrun', 'clang++', '-arch', target.removeprefix('macos-'), '-mmacosx-version-min=14.0',
         '-fobjc-arc', '-dynamiclib', str(root / 'packaging/sparkle_bridge/SparkleBridge.mm'),
         '-F' + str(cache), '-framework', 'Sparkle', '-framework', 'Cocoa',
         '-Wl,-rpath,@loader_path', '-Wl,-install_name,@rpath/SparkleBridge.dylib',

@@ -188,6 +188,7 @@ QT_QPA_PLATFORM=offscreen python -m pytest tests/ -q
 
 - Windows x64：解压后运行 exe，保留整个文件夹。
 - macOS Apple Silicon（arm64 / M 系列）：使用 ARM 原生 runner 构建。
+- macOS Intel（x86_64）：使用 Intel 原生 runner 构建。
 
 Mac 需要 macOS 14 或更新版本。每个 Mac ZIP 内都有 `MAC使用说明.txt`，
 只说明首次允许打开未使用 Developer ID 签名及公证的应用，以及软件使用方式。
@@ -212,6 +213,7 @@ CI 使用 Python 3.11 和固定版本依赖；模型由 `packaging/download_mode
 
 - `切字-v1.0.0-windows-x64.zip`
 - `切字-v1.0.0-macos-arm64.zip`（M 系列）
+- `切字-v1.0.0-macos-x86_64.zip`（Intel）
 
 文件名以标签为准，与可自由填写的 Release 标题无关；应用内名称保持中文。
 
@@ -277,3 +279,9 @@ Python 模块使用小写下划线命名，以职责区分；现有命令入口�
 Mac 无开发者证书时可设置 `HANZI_MAC_SIGNING=adhoc`，沿用 `bash build_mac.sh arm64`。仍需配置更新 feed、公钥和 Sparkle SDK/bridge；更新 ZIP 使用 Sparkle Ed25519 签名。此模式无需 Apple 公证，首次安装可能需要在系统隐私与安全性中允许打开。
 
 Mac 内部运行程序使用“中文字符标注工具”名称及独立产品标识。更新会等待实际运行程序退出，替换外层产品 app 后通过产品入口重新打开。
+
+## Intel Mac 构建
+
+使用 `bash build_mac.sh x86_64`，可设置 `PYTHON_X86_64` 指向 Intel Python 3.11。默认仍为 arm64。Intel 保留标准 OpenCV、Qt 和 ONNX 依赖，不采用 arm64 专用裁剪。最低 macOS 14，输出 `char-detection-main-v<版本号>-macos-x86_64.zip`。
+
+原生工作流 `native-build.yml` 默认 `target=all` 构建 Windows x64、Mac arm64 和 Mac Intel 三端。`target=macos-x86_64` 只执行 Intel 构建、自检、测试和 Artifact 上传，使用 `macos-15-intel`。Intel 使用独立 `macos-x86_64-appcast.xml` 更新源；勾选 `publish` 时三端安装包、签名更新源和发布清单一起发布，平台下载与镜像同步按架构区分。

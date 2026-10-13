@@ -1,4 +1,4 @@
-# macOS arm64 / Python 3.11.
+# macOS arm64 or x86_64 / Python 3.11.
 -r requirements-build.txt
 cmake==4.4.3; platform_machine == 'arm64'
 ninja==1.13.2; platform_machine == 'arm64'

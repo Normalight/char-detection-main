@@ -11,7 +11,7 @@ assets = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(assets)
 
 
-@pytest.mark.parametrize("target", ["windows-x64", "macos-arm64"])
+@pytest.mark.parametrize("target", ["windows-x64", "macos-arm64", "macos-x86_64"])
 def test_release_contains_only_application_zip(tmp_path, target):
     archive = tmp_path / "旧名称.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
@@ -69,7 +69,7 @@ def test_rejects_extra_mac_zip_entries(tmp_path, extra):
     assert archive.exists()
 
 
-@pytest.mark.parametrize("target", ["macos-x86_64", "macos-universal"])
+@pytest.mark.parametrize("target", ["macos-universal"])
 def test_rejects_unsupported_mac_release_target(target):
     with pytest.raises(ValueError, match="Unsupported package target"):
         assets.asset_stem("group-by-character", "v1.2.3", target)

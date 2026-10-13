@@ -139,8 +139,10 @@ def main():
     tag = release['tag_name']
     files = sorted(args.assets.rglob('*.zip'))
     targets = ('windows-x64', 'macos-arm64')
+    if any(f.name.endswith('-macos-x86_64.zip') for f in files):
+        targets += ('macos-x86_64',)
     if len(files) != len(targets) or not all(sum(f.name.endswith('-' + t + '.zip') for f in files) == 1 for t in targets):
-        raise RuntimeError('Expected exactly one installer for Windows x64 and macOS arm64')
+        raise RuntimeError('Expected exactly one installer for each release platform')
     body = release.get('body') or ''
     publisher.ensure_release(tag, release.get('name') or tag, body)
     for file in files:

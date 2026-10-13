@@ -22,8 +22,8 @@ def test_only_checked_installers_and_distinct_product_names(tmp_path):
     (source/'secret.txt').write_text('not a release file')
     stage=tmp_path/'stage'
     manifest=module.stage_assets(source,stage,'char-detection-main','v1.2.0','a'*40)
-    assert len(list(stage.iterdir()))==4
-    assert len(manifest['assets'])==2
+    assert len(list(stage.iterdir()))==5
+    assert len(manifest['assets'])==3
     assert all(a['name'].startswith('char-detection-main-v1.2.0-') for a in manifest['assets'])
     assert not (stage/'secret.txt').exists()
     with pytest.raises(module.PublishError,match='identity'):
@@ -33,7 +33,7 @@ def test_only_checked_installers_and_distinct_product_names(tmp_path):
 def test_incomplete_assets_not_published(tmp_path):
     source=tmp_path/'input';make_packages(source)
     next(source.iterdir()).unlink()
-    with pytest.raises(module.PublishError,match='both'):
+    with pytest.raises(module.PublishError,match='all required'):
         module.stage_assets(source,tmp_path/'stage','char-detection-main','v1.2.0','a'*40)
 
 
@@ -58,7 +58,7 @@ def test_publish_complete_draft_and_safe_rerun(tmp_path):
     client=Client()
     url=module.publish(client,stage,manifest)
     assert url.endswith('/char-detection-main-v1.2.0')
-    assert len(client.files)==4 and not client.data['draft']
+    assert len(client.files)==5 and not client.data['draft']
     count=len(client.calls)
     module.publish(client,stage,manifest)
     assert len(client.calls)==count
@@ -76,7 +76,7 @@ def test_mac_metadata_symlink_is_not_parsed_as_json(tmp_path):
             info.external_attr=(stat.S_IFLNK|0o777)<<16
             archive.writestr(info,'../Resources/build_info.json')
     manifest=module.stage_assets(source,tmp_path/'stage','char-detection-main','v1.2.0','a'*40)
-    assert len(manifest['assets'])==2
+    assert len(manifest['assets'])==3
 
 
 def test_tag_lookup_reuses_unpublished_draft(monkeypatch):

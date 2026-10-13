@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the Apple Silicon runtime and a double-clickable application.
+# Build the selected native macOS runtime and a double-clickable application.
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT="$PWD"
@@ -7,8 +7,8 @@ APP_NAME="中文字符标注工具"
 BUNDLE_ID="local.character.annotator"
 PRODUCT="${PRODUCT:-char-detection-main}"
 TARGET="${1:-arm64}"
-[[ "$TARGET" == arm64 && "$#" -le 1 ]] || { echo "用法: bash build_mac.sh [arm64]" >&2; exit 2; }
-ARCHES=(arm64)
+[[ ( "$TARGET" == arm64 || "$TARGET" == x86_64 ) && "$#" -le 1 ]] || { echo "用法: bash build_mac.sh [arm64|x86_64]" >&2; exit 2; }
+ARCHES=("$TARGET")
 [[ "$(uname -s)" == Darwin ]] || { echo '必须在 macOS 上构建。' >&2; exit 1; }
 xcrun --find clang >/dev/null || { echo '请先执行 xcode-select --install' >&2; exit 1; }
 # Use the selected Xcode developer tools.
@@ -20,10 +20,15 @@ export CXX="$(xcrun --find clang++)"
 for CPU in "${ARCHES[@]}"; do
     export ARCHFLAGS="-arch $CPU"
     export PYINSTALLER_CONFIG_DIR="$ROOT/build/mac-cache-$CPU"
-    PY="${PYTHON_ARM64:-}"
-    if [[ -z "$PY" ]]; then
-        command -v uv >/dev/null || { echo "请安装 uv，或设置 PYTHON_ARM64 为 arm64 架构的 Python 3.11 路径。" >&2; exit 1; }
+    if [[ "$CPU" == arm64 ]]; then
+        PY="${PYTHON_ARM64:-}"
         UV_CPU=aarch64
+    else
+        PY="${PYTHON_X86_64:-}"
+        UV_CPU=x86_64
+    fi
+    if [[ -z "$PY" ]]; then
+        command -v uv >/dev/null || { echo "请安装 uv，或设置对应架构的 PYTHON_ARM64 / PYTHON_X86_64 为 Python 3.11 路径。" >&2; exit 1; }
         uv python install "cpython-3.11-macos-${UV_CPU}-none"
         PY="$(uv python find "cpython-3.11-macos-${UV_CPU}-none")"
     fi
@@ -33,7 +38,8 @@ for CPU in "${ARCHES[@]}"; do
     RUN=(/usr/bin/arch -"$CPU" "$ENV_DIR/bin/python")
     "${RUN[@]}" -c "import platform; assert platform.machine() == '$CPU'"
     "${RUN[@]}" -m pip install --timeout 120 --retries 5 --only-binary=:all: -r packaging/requirements-mac.txt
-    MAC_ARCH="$CPU" "${RUN[@]}" -m PyInstaller --noconfirm --clean \
+    export MAC_ARCH="$CPU"
+    "${RUN[@]}" -m PyInstaller --noconfirm --clean \
         --distpath "$ROOT/build/mac-dist-$CPU" --workpath "$ROOT/build/mac-work-$CPU" packaging/mac.spec
     # Includes ONNX inference, GUI creation, and group app's frozen worker process.
     "$ROOT/build/mac-dist-$CPU/Runtime.app/Contents/MacOS/runtime" --smoke-test

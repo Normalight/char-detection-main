@@ -146,7 +146,10 @@ def package_macos(root, app):
     config = config_for(root)
     if config is None:
         return False
-    config = verify_built_config(root, app / 'Contents/Resources/runtime/arm64/Runtime.app/Contents/Resources/native_update.json')
+    arch = os.environ.get('MAC_ARCH', 'arm64')
+    if arch not in {'arm64', 'x86_64'}:
+        raise ValueError('Unsupported macOS architecture')
+    config = verify_built_config(root, app / f'Contents/Resources/runtime/{arch}/Runtime.app/Contents/Resources/native_update.json')
     identity, profile = mac_signing_config()
     framework = Path(os.environ['SPARKLE_FRAMEWORK']).resolve()
     bridge = Path(os.environ['SPARKLE_BRIDGE']).resolve()
@@ -162,7 +165,7 @@ def package_macos(root, app):
                 SUVerifyUpdateBeforeExtraction=True, SURelaunchHostBundle=True)
     plist_path.write_bytes(plistlib.dumps(data))
     sign_macos(app, identity)
-    archive = root / 'dist' / f'{root.name}-{config.version}-macos-arm64.zip'
+    archive = root / 'dist' / f'{root.name}-{config.version}-macos-{arch}.zip'
     archive.unlink(missing_ok=True)
     subprocess.run(['ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', str(app), str(archive)], check=True)
     if profile:

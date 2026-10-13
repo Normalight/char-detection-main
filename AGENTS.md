@@ -134,3 +134,9 @@ Mac 原生更新构建支持 HANZI_MAC_SIGNING=adhoc，无 Apple 签名标识时
 Mac 内部 Runtime.app 在 mac.spec 中使用公共 `native_release.runtime_bundle_info` 设置中文产品名、`local.character.annotator.runtime` 标识和构建版本。Sparkle 更新外层产品 app，等待实际运行 bundle 退出，并通过外层入口启动新版；内部目录名保留为打包路径。
 
 原生发布使用 `.github/workflows/native-build.yml`，传入已提交更新说明的版本。公开更新配置位于 packaging/native_update_public.json；SDK 从官方固定版本下载并校验 SHA-256，Mac bridge 源从 hanzi-update 同步。仓库变量 NATIVE_UPDATES=true 时旧 build.yml 停用。安装包资产统一为 `<软件>-vX.Y.Z-<平台>`（Windows 原生安装器 `.exe`、Mac `.zip`），与公开仓历史 Release 命名一致；`dist/` 每个平台只留一个安装包，`build_mac.sh` 在设置 HANZI_UPDATE_FEED 后不再另打包，避免同名 ZIP 覆盖签名更新包。默认运行时只构建/验收并上传 Artifact，更新包由本机钥匙串签名后发布；勾选 `publish` 输入后改用仓库 Secrets 的 `HANZI_UPDATE_PRIVATE_KEY` 签名，`packaging/native_publish.py` 发布 `<软件>-vX.Y.Z` 与 `<软件>-stable`，不勾选时私钥不进入 CI。
+
+## Intel Mac 构建
+
+使用 `bash build_mac.sh x86_64`，可设置 `PYTHON_X86_64` 指向 Intel Python 3.11。默认仍为 arm64。Intel 保留标准 OpenCV、Qt 和 ONNX 依赖，不采用 arm64 专用裁剪。最低 macOS 14，输出 `char-detection-main-v<版本号>-macos-x86_64.zip`。
+
+原生工作流 `native-build.yml` 默认 `target=all` 构建 Windows x64、Mac arm64 和 Mac Intel 三端。`target=macos-x86_64` 只执行 Intel 构建、自检、测试和 Artifact 上传，使用 `macos-15-intel`。Intel 使用独立 `macos-x86_64-appcast.xml` 更新源；勾选 `publish` 时三端安装包、签名更新源和发布清单一起发布，平台下载与镜像同步按架构区分。
