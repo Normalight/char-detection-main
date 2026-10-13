@@ -127,8 +127,17 @@ def sign_macos(app, identity):
     # Sign inside-out, without following framework aliases or using --deep to sign.
     magic = {b'\xcf\xfa\xed\xfe', b'\xfe\xed\xfa\xcf', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca'}
     paths = sorted(app.rglob('*'), key=lambda p: len(p.parts), reverse=True)
+    # Signing a bundle's main executable also signs its enclosing bundle. Leave
+    # that executable to the bundle step, after all its libraries are signed.
+    main_executables = set()
+    for bundle in [app, *(p for p in paths if p.suffix in {'.app', '.xpc'} and p.is_dir() and not p.is_symlink())]:
+        info = bundle / 'Contents/Info.plist'
+        if info.is_file():
+            name = plistlib.loads(info.read_bytes()).get('CFBundleExecutable')
+            if name:
+                main_executables.add(bundle / 'Contents/MacOS' / name)
     for path in paths:
-        if path.is_symlink():
+        if path.is_symlink() or path in main_executables:
             continue
         if path.is_file():
             with path.open('rb') as file:
