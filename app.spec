@@ -52,6 +52,11 @@ native_release = runpy.run_path(str(Path(project_dir) / 'packaging/native_releas
 datas.extend(native_release['analysis_data'](project_dir))
 datas.append(protection['build_info'](project_dir))
 
+# The compiled shared package reads products.json next to its module at
+# runtime; ship the registry from the installed wheel alongside it.
+import hanzi_update
+datas.append((str(Path(hanzi_update.__file__).parent / 'products.json'), 'hanzi_update'))
+
 a = Analysis(
     [str(code_root / 'packaging/entry.py')],             # 工程入口
     pathex=[str(code_root), str(code_root / 'packaging')],
