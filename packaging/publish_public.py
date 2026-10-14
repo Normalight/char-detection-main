@@ -15,7 +15,7 @@ import zipfile
 
 LOGGER = logging.getLogger(__name__)
 PUBLIC_REPO = 'Normalight/hanzi-soft'
-PRODUCTS = {'char-detection-main': '字符检测', 'group-by-character': '字形归并'}
+from hanzi_update.core import PRODUCT_LABELS as PRODUCTS, PRODUCT_TARGETS
 TARGETS = {'windows-x64', 'macos-arm64', 'macos-x86_64'}
 
 
@@ -55,7 +55,7 @@ def stage_assets(directory, stage, product, version, source_commit):
                 if (info.get('product'), info.get('version'), info.get('target')) != (product, version, target):
                     raise PublishError('Installer identity does not match the release')
         selected[target] = path
-    required = TARGETS if product == 'char-detection-main' else TARGETS - {'macos-x86_64'}
+    required = set(PRODUCT_TARGETS[product])
     if set(selected) != required:
         raise PublishError('Wait for all required platform ZIPs')
     stage = Path(stage)

@@ -14,7 +14,7 @@ PyMuPDF==1.25.5
 pdf2image==1.17.0
 
 # Shared desktop login package (vendored for independent builds).
-./vendor/hanzi_update-0.1.8-py3-none-any.whl
-./vendor/hanzi_auth-0.2.11-py3-none-any.whl
+./vendor/hanzi_update-0.1.9-py3-none-any.whl
+./vendor/hanzi_auth-0.2.12-py3-none-any.whl
 Cython==3.1.2
 setuptools==80.9.0

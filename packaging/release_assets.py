@@ -6,8 +6,8 @@ import re
 import zipfile
 
 VERSION = re.compile(r"v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
-PROJECTS = {"char-detection-main": ("切字", "中文字符标注工具.app"),
-            "group-by-character": ("归并", "字形归并工具.app")}
+from hanzi_update.core import ASSET_PREFIXES, APP_NAMES
+PROJECTS = {product: (prefix, APP_NAMES[product]) for product, prefix in ASSET_PREFIXES.items()}
 TARGETS = {"windows-x64", "macos-arm64", "macos-x86_64"}
 
 

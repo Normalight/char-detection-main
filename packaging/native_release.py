@@ -12,11 +12,11 @@ import shutil
 import subprocess
 import sys
 from hanzi_update.backends.base import UpdateConfig, release_version
+from hanzi_update.core import REGISTRY
 
-PRODUCTS = {
-    'char-detection-main': ('中文字符标注工具', 'interactive_annotator', 'local.character.annotator'),
-    'group-by-character': ('字形归并工具', 'group_by_character', 'local.character.grouping'),
-}
+# (应用名去 .app, 可执行名去 .exe, 外层 bundle 标识) 全部来自 hanzi-update 产品注册表。
+PRODUCTS = {product: (info['app_name'][:-len('.app')], info['exe_name'][:-len('.exe')], info['bundle_id'])
+            for product, info in REGISTRY.items()}
 
 
 def config_for(root):

@@ -23,9 +23,11 @@ ET.register_namespace('sparkle', NS)
 TARGETS = {'windows-appcast.xml': 'windows-x64', 'macos-appcast.xml': 'macos-arm64',
            'macos-x86_64-appcast.xml': 'macos-x86_64'}
 
+from hanzi_update.core import PRODUCT_TARGETS
+
 def product_feeds(product, selected=None):
     feeds = {name: target for name, target in TARGETS.items()
-             if product == 'char-detection-main' or target != 'macos-x86_64'}
+             if target in PRODUCT_TARGETS.get(product, ())}
     if selected and selected != 'all':
         feeds = {name: target for name, target in feeds.items() if target == selected}
         if not feeds:
