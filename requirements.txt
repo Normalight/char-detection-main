@@ -29,4 +29,4 @@ PySide6>=6.5
 
 # Shared desktop login package (vendored for independent builds).
 ./vendor/hanzi_update-0.1.9-py3-none-any.whl
-./vendor/hanzi_auth-0.2.12-py3-none-any.whl
+./vendor/hanzi_auth-0.2.13-py3-none-any.whl
