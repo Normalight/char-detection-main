@@ -127,7 +127,7 @@ Python 文件使用 `snake_case.py`，按职责命名；外部入口、软件标
 
 认证、会话与更新前置检查默认连接 `https://platform.myhanzi.cn`，保留 `/api/secure` 加密协议。旧公网 IP 的显式配置由认证包转换为 HTTPS 域名；公开 feed 与安装包仍在 GitCode。
 
-`hanzi-update` 的 attach_updates 使用 WinSparkle / Sparkle；保留现有按钮和 closeEvent 保存契约。登录后由认证守卫先检查公开 feed 与安装包是否就绪，随后才打开原生界面；GitCode 地址不在界面展示。Windows 当前用户安装器和 Mac 外层 app 的签名/公证辅助源在 hanzi-auth/tools/desktop_packaging/native_*，通过 sync_desktop.py 同步。工作流从 packaging/native_update_public.json 的 `gitcode_feed_base` 生成 HANZI_UPDATE_FEED，并配合 HANZI_UPDATE_PUBLIC_KEY 生成原生更新产物。PACKAGE_VERSION 派生原生版本信息，配置与已构建产物必须一致。原生 CI 用 `GITCODE_TOKEN` 直接上传并校验 GitCode 安装包与 feed，认证服务镜像器可补同步；`feed_base`（GitHub）供旧版客户端回退。Mac Bridge 隐藏历史按钮，两端内嵌中文说明。详细流程与尚未完成的真机验收见 ../hanzi-update/docs/update/release.md 和 test_report.md。
+`hanzi-update` 的 attach_updates 使用 WinSparkle / Sparkle；保留现有按钮和 closeEvent 保存契约。登录后由认证守卫先检查公开 feed 与安装包是否就绪，随后才打开原生界面；GitCode 地址不在界面展示。Windows 当前用户安装器和 Mac 外层 app 的签名/公证辅助源在 hanzi-auth/tools/desktop_packaging/native_*，通过 sync_desktop.py 同步。工作流从 packaging/native_update_public.json 的 `gitcode_feed_base` 生成 HANZI_UPDATE_FEED，并配合 HANZI_UPDATE_PUBLIC_KEY 生成原生更新产物。PACKAGE_VERSION 派生原生版本信息，配置与已构建产物必须一致。原生 CI 只发布 GitHub 分发 Release 与 stable feed（`native_publish.py --github-only`），不直接上传 GitCode。不要手工上传 GitCode 附件；由 hanzi-auth 镜像器扫描 GitHub Release 并按后台分发平台配置自动同步安装包和改写后的 feed，校验成功后客户端才可用。`feed_base`（GitHub）供旧版客户端回退。Mac Bridge 隐藏历史按钮，两端内嵌中文说明。详细流程与尚未完成的真机验收见 ../hanzi-update/docs/update/release.md 和 test_report.md。
 
 Mac 原生更新构建支持 HANZI_MAC_SIGNING=adhoc，无 Apple 签名标识时默认采用此模式；使用本地 ad-hoc 签名并保留更新包 Ed25519 校验。developer-id 模式另需证书及公证 profile。
 
@@ -139,6 +139,6 @@ Mac 内部 Runtime.app 在 mac.spec 中使用公共 `native_release.runtime_bund
 
 使用 `bash build_mac.sh x86_64`，可设置 `PYTHON_X86_64` 指向 Intel Python 3.11。默认仍为 arm64。Intel 保留标准 OpenCV、Qt 和 ONNX 依赖，不采用 arm64 专用裁剪。最低 macOS 14，输出 `char-detection-main-v<版本号>-macos-x86_64.zip`。
 
-原生工作流 `native-build.yml` 默认 `target=all` 构建 Windows x64、Mac arm64 和 Mac Intel 三端。`target=macos-x86_64` 只执行 Intel 构建、自检、测试和 Artifact 上传，使用 `macos-15-intel`。Intel 使用独立 `macos-x86_64-appcast.xml` 更新源；勾选 `publish` 时三端安装包、签名更新源和发布清单一起发布，平台下载与镜像同步按架构区分。
+原生工作流 `native-build.yml` 的 `target=all` 从 `requirements.txt` 指向的 vendored hanzi-update wheel 内 `products.json` 的本产品 `targets` 并行构建全部配置平台；当前配置为 Windows x64、Mac arm64 和 Mac Intel 三端。`target=macos-x86_64` 只执行 Intel 构建、自检、测试和 Artifact 上传，使用 `macos-15-intel`。Intel 使用独立 `macos-x86_64-appcast.xml` 更新源；勾选 `publish` 时三端安装包、签名更新源和发布清单一起发布，平台下载与镜像同步按架构区分。
 
-原生工作流可单独勾选某个平台并开启 `publish`，使用独立平台清单和签名 feed 补发同版安装包；已有其他平台的附件保持不变。只构建时关闭 `publish`，CI Artifact 不会自动进入平台下载目录。平台默认三端，后台允许按软件独立配置分发范围。
+原生工作流可单独勾选某个平台并开启 `publish`，使用独立平台清单和签名 feed 补发同版安装包；已有其他平台的附件保持不变。只构建时关闭 `publish`，CI Artifact 不会自动进入平台下载目录。可构建平台以共享 `products.json` 为准；后台平台勾选控制可下载、版本检查、摘要和镜像同步范围。改注册表后先在 hanzi-auth 同步并更新客户端 vendor wheel，再运行工作流。

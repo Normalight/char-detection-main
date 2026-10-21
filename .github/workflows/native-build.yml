@@ -7,7 +7,7 @@ on:
         type: string
         required: true
       target:
-        description: Build target (all = Windows, Apple Silicon and Intel)
+        description: Build target (all = all platforms configured for this product)
         type: choice
         options: [all, windows-x64, macos-arm64, macos-x86_64]
         default: all
@@ -26,21 +26,34 @@ jobs:
     outputs:
       matrix: ${{ steps.targets.outputs.matrix }}
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - id: targets
         env:
           TARGET: ${{ inputs.target }}
-          PUBLISH: ${{ inputs.publish }}
+          PRODUCT: char-detection-main
         run: |
           python3 - <<'PYTHON'
-          import json, os
-          targets = [
-              {'target': 'windows-x64', 'runner': 'windows-2022', 'python_arch': 'x64'},
-              {'target': 'macos-arm64', 'runner': 'macos-15', 'python_arch': 'arm64', 'mac_arch': 'arm64'},
-              {'target': 'macos-x86_64', 'runner': 'macos-15-intel', 'python_arch': 'x64', 'mac_arch': 'x86_64'},
-          ]
+          import json, os, re, zipfile
+          from pathlib import Path
+          references = re.findall(r'(?:\./)?vendor/(hanzi_update-[^\s#]+\.whl)', Path('requirements.txt').read_text(encoding='utf-8'))
+          assert len(references) == 1, f'Expected one pinned hanzi-update wheel in requirements.txt, found {references}'
+          wheel_path = Path('vendor') / Path(references[0]).name
+          assert wheel_path.is_file(), f'Pinned hanzi-update wheel is missing: {wheel_path}'
+          with zipfile.ZipFile(wheel_path) as wheel:
+              registry = json.loads(wheel.read('hanzi_update/products.json'))['products']
+          product = os.environ['PRODUCT']
+          assert product in registry, f'{product} is missing from the hanzi-update product registry'
+          runners = {
+              'windows-x64': {'runner': 'windows-2022', 'python_arch': 'x64'},
+              'macos-arm64': {'runner': 'macos-15', 'python_arch': 'arm64', 'mac_arch': 'arm64'},
+              'macos-x86_64': {'runner': 'macos-15-intel', 'python_arch': 'x64', 'mac_arch': 'x86_64'},
+          }
+          configured = registry[product]['targets']
+          assert configured and all(target in runners for target in configured), f'Unsupported targets configured for {product}: {configured}'
+          targets = [{'target': target, **runners[target]} for target in configured]
           selected = os.environ['TARGET'] or 'all'
           chosen = targets if selected == 'all' else [t for t in targets if t['target'] == selected]
-          assert chosen, 'Unknown build target'
+          assert chosen, f'Target {selected!r} is not configured for {product}: {configured}'
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write('matrix=' + json.dumps({'include': chosen}) + '\n')
           PYTHON
@@ -207,7 +220,6 @@ jobs:
       contents: read
     env:
       GH_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
-      GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
       PRODUCT: char-detection-main
       PACKAGE_VERSION: ${{ inputs.version }}
     steps:
@@ -224,4 +236,4 @@ jobs:
       - name: Publish signed release and stable feeds
         run: |
           python packaging/native_publish.py --product "$PRODUCT" --version "$PACKAGE_VERSION" \
-            --assets assets --notes "RELEASE_NOTES_$PACKAGE_VERSION.md" --source-commit "$GITHUB_SHA" --target "${{ inputs.target || 'all' }}"
+            --assets assets --notes "RELEASE_NOTES_$PACKAGE_VERSION.md" --source-commit "$GITHUB_SHA" --target "${{ inputs.target || 'all' }}" --github-only
