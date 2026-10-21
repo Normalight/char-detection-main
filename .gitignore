@@ -84,6 +84,7 @@ desktop.ini
 /ppt_assets/
 
 # Annotation sessions and retired local experiments
+/:memory:.ses
 /interactive_output/
 /output_v6small/
 /opts.json
